@@ -333,6 +333,7 @@ def _handle_non_stream(
 
         full_content = ""
         reasoning_content = ""
+        tool_calls = []
 
         chunks = []
         def collector(chunk):
@@ -351,11 +352,19 @@ def _handle_non_stream(
                     full_content += delta["content"]
                 if "reasoning_content" in delta and delta["reasoning_content"]:
                     reasoning_content += delta["reasoning_content"]
+                # Collect tool calls from delta
+                if "tool_calls" in delta and delta["tool_calls"]:
+                    for tc in delta["tool_calls"]:
+                        tool_calls.append(tc)
 
         # Build OpenAI-compatible response
-        message = {"role": "assistant", "content": full_content}
+        message = {"role": "assistant", "content": None if tool_calls else full_content}
         if reasoning_content:
             message["reasoning_content"] = reasoning_content
+        if tool_calls:
+            message["tool_calls"] = tool_calls
+
+        finish_reason = "tool_calls" if tool_calls else "stop"
 
         result = {
             "id": request_id,
@@ -365,7 +374,7 @@ def _handle_non_stream(
             "choices": [{
                 "index": 0,
                 "message": message,
-                "finish_reason": "stop",
+                "finish_reason": finish_reason,
             }],
             "usage": {
                 "prompt_tokens": 0,

@@ -1,7 +1,6 @@
 """
 Kimi Web API Client
 Reverse-engineered client for Kimi's internal chat API.
-Based on the TypeScript Chat2API reference implementation.
 Uses gRPC-Web protocol to communicate with Kimi's ChatService.
 """
 
@@ -15,6 +14,7 @@ from typing import Optional
 import requests
 
 from .auth import token_manager, TokenInfo, FAKE_HEADERS
+from .tool_parser import TOOL_WRAP_HINT, has_tool_prompt_injected
 
 KIMI_API_BASE = "https://www.kimi.com"
 CHAT_PATH = "/apiv2/kimi.gateway.chat.v1.ChatService/Chat"
@@ -48,7 +48,6 @@ class KimiClient:
     """
     Kimi web API client.
     Translates OpenAI-style requests to Kimi's internal gRPC-Web format.
-    Matches the TypeScript Chat2API reference implementation.
     """
 
     def __init__(self, token: str):
@@ -65,9 +64,10 @@ class KimiClient:
         Convert OpenAI-format messages to Kimi's text format.
         Kimi expects: role:content\n format with special handling for
         system messages, tool calls, and URLs.
-        
-        Matches the TypeScript messagesPrepare() implementation.
         """
+        # Check if tool prompt has already been injected by client
+        tool_prompt_exists = has_tool_prompt_injected(messages)
+
         # Process messages including tool calls and tool responses
         processed_messages = []
         for msg in messages:
@@ -114,6 +114,16 @@ class KimiClient:
                 continue
 
             processed_messages.append({"role": role, "content": content})
+
+        # Append TOOL_WRAP_HINT to last user message if tools are present
+        # and tool prompt hasn't been injected yet
+        if tools and not tool_prompt_exists:
+            for i in range(len(processed_messages) - 1, -1, -1):
+                if processed_messages[i]["role"] == "user":
+                    current_content = processed_messages[i]["content"]
+                    if isinstance(current_content, str):
+                        processed_messages[i]["content"] = current_content + TOOL_WRAP_HINT
+                    break
 
         # Extract system message
         system_content = ""
@@ -180,25 +190,10 @@ class KimiClient:
     ) -> dict:
         """
         Build a Kimi-compatible chat request body in gRPC-Web format.
-        
-        Matches the TypeScript reference:
-        {
-            scenario: 'SCENARIO_K2D5',
-            chat_id: '',
-            tools: enableWebSearch ? [{ type: 'TOOL_TYPE_SEARCH', search: {} }] : [],
-            message: {
-                parent_id: '',
-                role: 'user',
-                blocks: [{ message_id: '', text: { content } }],
-                scenario: 'SCENARIO_K2D5'
-            },
-            options: { thinking: enableThinking }
-        }
         """
         # Convert messages to Kimi's text format
         content = self._messages_to_kimi_format(messages, tools)
 
-        # Build request body matching TypeScript reference exactly
         request_body = {
             "scenario": "SCENARIO_K2D5",
             "chat_id": "",
@@ -303,13 +298,15 @@ class KimiClient:
 
 
 def _build_tools_prompt(tools: list[dict]) -> str:
-    """Build a system prompt describing available tools"""
+    """
+    Build a system prompt describing available tools.
+    """
     tool_defs = []
     for tool in tools:
         func = tool.get("function", {})
         name = func.get("name", "")
         desc = func.get("description", "No description")
-        params = json.dumps(func.get("parameters", {}))
+        params = json.dumps(func.get("parameters", {}), ensure_ascii=False)
         tool_defs.append(f"Tool `{name}`: {desc}. Arguments JSON schema: {params}")
 
     return f"""## Available Tools
@@ -330,4 +327,6 @@ CRITICAL RULES:
 3. The content between [call:...] and [/call] MUST be a raw JSON object on ONE LINE - NO LINE BREAKS inside the JSON
 4. Do NOT wrap JSON in ```json blocks
 5. Do NOT output any other text, explanation, or reasoning before or after the [function_calls] block
-6. If you want to call multiple tools, include multiple [call:...] blocks within a single [function_calls] block"""
+6. If you need to call multiple tools, put them all inside the same [function_calls] block, each with its own [call:...]...[/call] wrapper
+7. JSON arguments MUST be compact, all on one line, NO pretty printing, NO newlines
+8. If you are writing code or regular expressions, you MUST properly escape all backslashes and quotes inside the JSON string."""

@@ -10,6 +10,13 @@ import time
 from typing import Optional, Generator, Callable
 
 from .config import config
+from .stream_tool_handler import (
+    ToolCallState,
+    create_tool_call_state,
+    create_base_chunk,
+    process_stream_content,
+    flush_tool_call_buffer,
+)
 
 
 def unix_timestamp() -> int:
@@ -60,6 +67,9 @@ class KimiStreamHandler:
         self.has_error: bool = False
         self.current_phase: Optional[str] = None  # 'thinking' or 'answer'
         self.reasoning_buffer: str = ""
+
+        # Tool call state for detecting/parsing function calls
+        self.tool_call_state = create_tool_call_state()
 
         # gRPC-Web frame buffer
         self._buffer: bytes = b""
@@ -206,17 +216,14 @@ class KimiStreamHandler:
             elif self._is_answer_mask(mask):
                 content = self._extract_text_content(data)
                 if content:
-                    emit({
-                        "id": self.get_conversation_id(),
-                        "object": "chat.completion.chunk",
-                        "created": created,
-                        "model": self.model,
-                        "choices": [{
-                            "index": 0,
-                            "delta": {"content": content},
-                            "finish_reason": None,
-                        }],
-                    })
+                    # Process through tool call handler
+                    chat_id = self.get_conversation_id() or self.conversation_id
+                    base_chunk = create_base_chunk(chat_id, self.model, created)
+                    result = process_stream_content(
+                        content, self.tool_call_state, base_chunk, False, "kimi"
+                    )
+                    for chunk in result["chunks"]:
+                        emit(chunk)
 
             elif text_block.get("content"):
                 content = text_block["content"]
@@ -234,26 +241,35 @@ class KimiStreamHandler:
                         }],
                     })
                 else:
-                    emit({
-                        "id": self.get_conversation_id(),
-                        "object": "chat.completion.chunk",
-                        "created": created,
-                        "model": self.model,
-                        "choices": [{
-                            "index": 0,
-                            "delta": {"content": content},
-                            "finish_reason": None,
-                        }],
-                    })
+                    # Process through tool call handler
+                    chat_id = self.get_conversation_id() or self.conversation_id
+                    base_chunk = create_base_chunk(chat_id, self.model, created)
+                    result = process_stream_content(
+                        content, self.tool_call_state, base_chunk, False, "kimi"
+                    )
+                    for chunk in result["chunks"]:
+                        emit(chunk)
 
         # Handle completion
         if data.get("done") is not None:
+            # Flush any remaining tool call buffer
+            chat_id = self.get_conversation_id() or self.conversation_id
+            base_chunk = create_base_chunk(chat_id, self.model, created)
+            flush_chunks = flush_tool_call_buffer(
+                self.tool_call_state, base_chunk, "kimi"
+            )
+            for chunk in flush_chunks:
+                emit(chunk)
+
+            # Determine finish reason
+            finish_reason = "tool_calls" if self.tool_call_state.has_emitted_tool_call else "stop"
+
             emit({
                 "id": self.get_conversation_id(),
                 "object": "chat.completion.chunk",
                 "created": created,
                 "model": self.model,
-                "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+                "choices": [{"index": 0, "delta": {}, "finish_reason": finish_reason}],
             })
             emit(None)  # Signal DONE
 
