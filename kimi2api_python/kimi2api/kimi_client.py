@@ -183,7 +183,7 @@ class KimiClient:
     def _build_chat_request(
         self,
         messages: list[dict],
-        model: str = "kimi-k2.5",
+        model: str = "kimi-k2.6",
         enable_thinking: bool = False,
         enable_web_search: bool = False,
         tools: Optional[list[dict]] = None,
@@ -217,7 +217,8 @@ class KimiClient:
     def chat_completion(
         self,
         messages: list[dict],
-        model: str = "kimi-k2.5",
+        model: str = "kimi-k2.6",
+        original_model: Optional[str] = None,
         stream: bool = True,
         temperature: Optional[float] = None,
         enable_thinking: bool = False,
@@ -235,14 +236,15 @@ class KimiClient:
         """
         token_info = self._get_token_info()
 
-        # Auto-enable features based on model name (matches TS reference)
-        model_lower = model.lower()
-        if not enable_thinking and ("think" in model_lower or "r1" in model_lower):
+        # Auto-enable features based on the public model name before mapping.
+        model_for_detection = original_model or model
+        model_lower = model_for_detection.lower()
+        if not enable_thinking and ("thinking" in model_lower or "think" in model_lower or "r1" in model_lower):
             enable_thinking = True
-            print(f"[KimiClient] Thinking mode enabled (from model name: {model})")
+            print(f"[KimiClient] Thinking mode enabled (from model name: {model_for_detection})")
         if not enable_web_search and "search" in model_lower:
             enable_web_search = True
-            print(f"[KimiClient] Web search enabled (from model name: {model})")
+            print(f"[KimiClient] Web search enabled (from model name: {model_for_detection})")
 
         # Build headers - matches TS reference (no R-Device-Id/R-Session-Id)
         headers = {

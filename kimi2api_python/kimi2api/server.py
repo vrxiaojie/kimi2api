@@ -75,6 +75,14 @@ def _generate_request_id() -> str:
     return f"chatcmpl-{uuid.uuid4().hex[:24]}"
 
 
+def _infer_model_features(model: str) -> tuple[bool, bool]:
+    """Infer thinking/search features from the public model name."""
+    model_lower = model.lower()
+    enable_thinking = "thinking" in model_lower or "think" in model_lower or "r1" in model_lower
+    enable_web_search = "search" in model_lower
+    return enable_thinking, enable_web_search
+
+
 # ============================================================
 # Routes
 # ============================================================
@@ -118,7 +126,7 @@ def list_models():
 
     models = [
         {
-            "id": "kimi-k2.5",
+            "id": "kimi-k2.6",
             "object": "model",
             "created": 1700000000,
             "owned_by": "kimi2api",
@@ -127,7 +135,7 @@ def list_models():
 
     # Also list mapped models
     for openai_name in config.model_mapping:
-        if openai_name != "kimi-k2.5":
+        if openai_name != "kimi-k2.6":
             models.append({
                 "id": openai_name,
                 "object": "model",
@@ -183,6 +191,12 @@ def chat_completions():
     reasoning_effort = body.get("reasoning_effort") or body.get("reasoningEffort")
     enable_thinking = reasoning_effort in ("low", "medium", "high") if reasoning_effort else False
 
+    inferred_thinking, inferred_web_search = _infer_model_features(model)
+    if not enable_thinking:
+        enable_thinking = inferred_thinking
+    if not enable_web_search:
+        enable_web_search = inferred_web_search
+
     # Map model name
     actual_model = config.model_mapping.get(model, model)
 
@@ -201,10 +215,10 @@ def chat_completions():
 
     if stream:
         return _handle_stream(kimi_client, messages, actual_model, temperature,
-                             enable_thinking, enable_web_search, tools, request_id)
+                             enable_thinking, enable_web_search, tools, request_id, model)
     else:
         return _handle_non_stream(kimi_client, messages, actual_model, temperature,
-                                  enable_thinking, enable_web_search, tools, request_id)
+                                  enable_thinking, enable_web_search, tools, request_id, model)
 
 
 def _handle_stream(
@@ -216,6 +230,7 @@ def _handle_stream(
     enable_web_search: bool,
     tools: Optional[list[dict]],
     request_id: str,
+    original_model: str,
 ) -> Response:
     """Handle streaming chat completion"""
 
@@ -224,6 +239,7 @@ def _handle_stream(
             response = kimi_client.chat_completion(
                 messages=messages,
                 model=model,
+                original_model=original_model,
                 stream=True,
                 temperature=temperature,
                 enable_thinking=enable_thinking,
@@ -311,12 +327,14 @@ def _handle_non_stream(
     enable_web_search: bool,
     tools: Optional[list[dict]],
     request_id: str,
+    original_model: str,
 ) -> Response:
     """Handle non-streaming chat completion"""
     try:
         response = kimi_client.chat_completion(
             messages=messages,
             model=model,
+            original_model=original_model,
             stream=False,
             temperature=temperature,
             enable_thinking=enable_thinking,

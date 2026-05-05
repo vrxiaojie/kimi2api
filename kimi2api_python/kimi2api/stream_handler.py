@@ -53,7 +53,7 @@ class KimiStreamHandler:
 
     def __init__(
         self,
-        model: str = "kimi-k2.5",
+        model: str = "kimi-k2.6",
         conversation_id: str = "",
         enable_thinking: bool = False,
     ):
@@ -276,7 +276,7 @@ class KimiStreamHandler:
 
 def generate_sse_events(
     response,
-    model: str = "kimi-k2.5",
+    model: str = "kimi-k2.6",
     conversation_id: str = "",
     enable_thinking: bool = False,
 ) -> Generator[str, None, None]:

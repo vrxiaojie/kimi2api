@@ -29,7 +29,8 @@ class AppConfig:
 
     # Model mapping (OpenAI model name -> Kimi model name)
     model_mapping: dict[str, str] = field(default_factory=lambda: {
-        "kimi-k2.5": "kimi-k2.5",
+        "kimi-k2.6": "kimi-k2.6",
+        "kimi-k2.6-thinking": "kimi-k2.6",
     })
 
     # Log level

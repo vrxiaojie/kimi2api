@@ -97,7 +97,7 @@ def cmd_keys(args) -> int:
         print("Usage:")
         print(f'  curl -H "Authorization: Bearer {key}" \\')
         print(f'       -H "Content-Type: application/json" \\')
-        print(f'       -d \'{{"model":"kimi-k2.5","messages":[{{"role":"user","content":"Hello"}}]}}\' \\')
+        print(f'       -d \'{{"model":"kimi-k2.6","messages":[{{"role":"user","content":"Hello"}}]}}\' \\')
         print(f'       http://{config.host}:{config.port}/v1/chat/completions')
         return 0
 
@@ -198,7 +198,7 @@ Examples:
   kimi2api config set-token "eyJhbGciOi..."
   kimi2api keys create --name "my-app"
   kimi2api serve --port 8080
-  kimi2api model add --openai gpt-4 --kimi kimi-k2.5
+  kimi2api model add --openai gpt-4 --kimi kimi-k2.6
         """,
     )
 

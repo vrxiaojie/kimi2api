@@ -59,7 +59,7 @@ curl http://127.0.0.1:8080/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer sk-你的API_Key" \
   -d '{
-    "model": "kimi-k2.5",
+    "model": "kimi-k2.6",
     "messages": [{"role": "user", "content": "你好"}],
     "stream": true
   }'
@@ -90,7 +90,7 @@ python run.py keys delete <prefix_or_name>       # 删除 Key
 
 ```bash
 python run.py model list                                      # 列出映射
-python run.py model add --openai gpt-4 --kimi kimi-k2.5       # 添加映射
+python run.py model add --openai gpt-4 --kimi kimi-k2.6       # 添加映射
 python run.py model remove --openai gpt-4                     # 删除映射
 ```
 
