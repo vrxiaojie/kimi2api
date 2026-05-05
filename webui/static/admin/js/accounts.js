@@ -14,6 +14,12 @@ const AccountsPage = {
             accountNotesInput: document.getElementById('accountNotesInput'),
             accountSubmitBtn: document.getElementById('accountSubmitBtn'),
             accountResetBtn: document.getElementById('accountResetBtn'),
+            curlImportForm: document.getElementById('curlImportForm'),
+            curlAccountNameInput: document.getElementById('curlAccountNameInput'),
+            curlCommandInput: document.getElementById('curlCommandInput'),
+            curlNotesInput: document.getElementById('curlNotesInput'),
+            curlActivateInput: document.getElementById('curlActivateInput'),
+            curlResetBtn: document.getElementById('curlResetBtn'),
             accountsList: document.getElementById('accountsList'),
             accountEditModal: document.getElementById('accountEditModal'),
             accountEditForm: document.getElementById('accountEditForm'),
@@ -32,6 +38,8 @@ const AccountsPage = {
     bindEvents() {
         this.els.accountForm?.addEventListener('submit', e => this.submitAccount(e));
         this.els.accountResetBtn?.addEventListener('click', () => this.resetForm());
+        this.els.curlImportForm?.addEventListener('submit', e => this.submitCurlImport(e));
+        this.els.curlResetBtn?.addEventListener('click', () => this.resetCurlForm());
         this.els.accountEditForm?.addEventListener('submit', e => this.submitEdit(e));
         this.els.closeAccountModalBtn?.addEventListener('click', () => this.closeModal());
         this.els.cancelAccountModalBtn?.addEventListener('click', () => this.closeModal());
@@ -58,7 +66,7 @@ const AccountsPage = {
         if (!this.els.accountsList) return;
 
         if (!AdminState.accounts.length) {
-            this.els.accountsList.innerHTML = '<div class="muted-box">还没有账号。你可以在这里添加 JWT 账号，或者切换到 OAuth 登录页自动获取 token。</div>';
+            this.els.accountsList.innerHTML = '<div class="muted-box">还没有账号。你可以在这里直接添加 token，或者粘贴浏览器复制的 curl 请求导入 auth token。</div>';
             return;
         }
 
@@ -128,6 +136,13 @@ const AccountsPage = {
         if (this.els.accountSubmitBtn) this.els.accountSubmitBtn.textContent = '新增账号';
     },
 
+    resetCurlForm() {
+        if (this.els.curlAccountNameInput) this.els.curlAccountNameInput.value = '';
+        if (this.els.curlCommandInput) this.els.curlCommandInput.value = '';
+        if (this.els.curlNotesInput) this.els.curlNotesInput.value = '';
+        if (this.els.curlActivateInput) this.els.curlActivateInput.value = 'true';
+    },
+
     openModal(account) {
         if (this.els.editingAccountId) this.els.editingAccountId.value = account.id;
         if (this.els.editAccountNameInput) this.els.editAccountNameInput.value = account.name || '';
@@ -163,6 +178,22 @@ const AccountsPage = {
         });
         this.resetForm();
         Toast.success('账号添加成功');
+        await AdminManager.loadState();
+    },
+
+    async submitCurlImport(event) {
+        event.preventDefault();
+        await requestJson('/admin/api/accounts/import-curl', {
+            method: 'POST',
+            body: JSON.stringify({
+                name: this.els.curlAccountNameInput?.value.trim(),
+                curl: this.els.curlCommandInput?.value.trim(),
+                notes: this.els.curlNotesInput?.value.trim(),
+                activate: this.els.curlActivateInput?.value === 'true',
+            }),
+        });
+        this.resetCurlForm();
+        Toast.success('已从 curl 导入账号');
         await AdminManager.loadState();
     },
 

@@ -6,6 +6,7 @@ proxying requests to Kimi's internal API.
 
 import os
 import json
+import re
 import time
 import uuid
 import logging
@@ -29,7 +30,6 @@ from .auth import token_manager, validate_kimi_token
 from .kimi_client import KimiClient
 from .stream_handler import KimiStreamHandler, generate_sse_events
 from .apikey_manager import api_key_manager
-from .oauth_login import oauth_login_manager
 
 # Configure logging
 logging.basicConfig(
@@ -72,7 +72,6 @@ def _serialize_api_key(api_key) -> dict:
 
 def _serialize_state() -> dict:
     active_account = get_active_account(config)
-    oauth_state = oauth_login_manager.get_status()
     return {
         "config": {
             "host": config.host,
@@ -91,7 +90,6 @@ def _serialize_state() -> dict:
             for openai_model, kimi_model in config.model_mapping.items()
         ],
         "api_keys": [_serialize_api_key(api_key) for api_key in api_key_manager.list_keys()],
-        "oauth": oauth_state,
     }
 
 
@@ -182,6 +180,60 @@ def _mask_credentials(data: dict) -> dict:
         token = str(masked["token"])
         masked["token"] = f"{token[:6]}...{token[-4:]}" if len(token) > 10 else "***"
     return masked
+
+
+def _extract_auth_token_from_curl(curl_command: str) -> str:
+    raw_text = str(curl_command or "")
+    if not raw_text.strip():
+        raise ValueError("Missing required field: curl")
+
+    match = re.search(r"auth=([^;]+)", raw_text, flags=re.IGNORECASE)
+    if not match:
+        raise ValueError("未能在 curl 文本中找到 auth=...;，请确认复制的是包含 Cookie 的请求")
+
+    token = match.group(1).strip().strip('"').strip("'")
+    if not token:
+        raise ValueError("提取到的 auth token 为空，请确认复制的 curl 内容完整")
+
+    return token
+
+
+def _create_account_from_token(
+    *,
+    name: str,
+    token: str,
+    auth_method: str,
+    notes: str,
+    enabled: bool,
+    activate: bool,
+    source: str,
+) -> tuple[KimiAccount, dict]:
+    validation = validate_kimi_token(token)
+    if not validation.get("valid"):
+        raise ValueError(validation.get("error", "Token validation failed"))
+
+    now = time.time()
+    account = KimiAccount(
+        id=f"acct-{uuid.uuid4().hex[:12]}",
+        name=name,
+        auth_method=auth_method,
+        token=token,
+        token_type=validation.get("token_type") or auth_method or "jwt",
+        created_at=now,
+        updated_at=now,
+        enabled=enabled,
+        notes=notes,
+        user_id=(validation.get("account_info") or {}).get("user_id", ""),
+        source=source,
+        validation_status="untested",
+        validation_message="Token 已保存，尚未发送测试消息",
+    )
+
+    config.accounts.append(account)
+    if activate or not config.active_account_id:
+        set_active_account(config, account.id)
+    save_config(config)
+    return account, validation
 
 
 def _require_api_key():
@@ -375,31 +427,18 @@ def admin_accounts():
     if not token:
         return jsonify({"error": {"message": "Missing required field: token", "type": "invalid_request_error"}}), 400
 
-    validation = validate_kimi_token(token)
-    if not validation.get("valid"):
-        return jsonify({"error": {"message": validation.get("error", "Token validation failed"), "type": "validation_error"}}), 400
-
-    now = time.time()
-    account = KimiAccount(
-        id=f"acct-{uuid.uuid4().hex[:12]}",
-        name=name,
-        auth_method=auth_method or "jwt",
-        token=token,
-        token_type=validation.get("token_type") or auth_method or "jwt",
-        created_at=now,
-        updated_at=now,
-        enabled=enabled,
-        notes=notes,
-        user_id=(validation.get("account_info") or {}).get("user_id", ""),
-        source="oauth" if auth_method == "oauth" else "jwt",
-        validation_status="untested",
-        validation_message="Token 已保存，尚未发送测试消息",
-    )
-
-    config.accounts.append(account)
-    if activate or not config.active_account_id:
-        set_active_account(config, account.id)
-    save_config(config)
+    try:
+        account, validation = _create_account_from_token(
+            name=name,
+            token=token,
+            auth_method=auth_method or "jwt",
+            notes=notes,
+            enabled=enabled,
+            activate=activate,
+            source="jwt",
+        )
+    except ValueError as error:
+        return jsonify({"error": {"message": str(error), "type": "validation_error"}}), 400
 
     return jsonify({
         "account": _serialize_account(account),
@@ -408,32 +447,36 @@ def admin_accounts():
     }), 201
 
 
-@app.route("/admin/api/oauth/start", methods=["POST"])
-def admin_oauth_start():
-    """Start the browser-based OAuth login flow."""
+@app.route("/admin/api/accounts/import-curl", methods=["POST"])
+def admin_accounts_import_curl():
+    """Create an account by extracting auth token from a browser-copied curl command."""
     payload = request.get_json(force=True, silent=True) or {}
     name = str(payload.get("name") or "").strip()
     notes = str(payload.get("notes") or "").strip()
+    curl_command = str(payload.get("curl") or "")
     activate = bool(payload.get("activate", True))
 
     try:
-        session = oauth_login_manager.start_login(name, notes=notes, activate=activate)
-    except RuntimeError as error:
-        return jsonify({"error": {"message": str(error), "type": "conflict_error"}}), 409
+        token = _extract_auth_token_from_curl(curl_command)
+        account_name = name or f"Kimi Curl {time.strftime('%m-%d %H:%M')}"
+        account, validation = _create_account_from_token(
+            name=account_name,
+            token=token,
+            auth_method="oauth",
+            notes=notes,
+            enabled=True,
+            activate=activate,
+            source="curl",
+        )
+    except ValueError as error:
+        return jsonify({"error": {"message": str(error), "type": "validation_error"}}), 400
 
-    return jsonify({"session": session}), 202
-
-
-@app.route("/admin/api/oauth/status", methods=["GET"])
-def admin_oauth_status():
-    """Return current OAuth login session state."""
-    return jsonify(oauth_login_manager.get_status())
-
-
-@app.route("/admin/api/oauth/cancel", methods=["POST"])
-def admin_oauth_cancel():
-    """Cancel the current OAuth login flow."""
-    return jsonify(oauth_login_manager.cancel())
+    return jsonify({
+        "account": _serialize_account(account),
+        "validation": validation,
+        "active_account_id": config.active_account_id,
+        "import_method": "curl",
+    }), 201
 
 
 @app.route("/admin/api/accounts/<account_id>", methods=["PUT", "DELETE"])
