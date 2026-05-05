@@ -212,6 +212,24 @@
             margin-bottom: 18px;
         }
 
+        .page-header {
+            margin-bottom: 18px;
+            padding: 6px 2px 2px;
+        }
+
+        .page-header h2 {
+            font-size: 28px;
+            line-height: 1.12;
+            margin-bottom: 8px;
+        }
+
+        .page-header p {
+            color: var(--muted);
+            line-height: 1.7;
+            max-width: 780px;
+            font-size: 15px;
+        }
+
         .hero h2 {
             font-size: clamp(28px, 2.8vw, 44px);
             line-height: 1.06;
@@ -645,20 +663,21 @@
         </aside>
 
         <section class="content-panel">
-            <section class="hero">
-                <div class="eyebrow" id="heroEyebrow">Overview</div>
-                <h2 id="heroTitle">统一管理 Kimi2API 的运行配置和账号。</h2>
-                <p id="heroDescription">左侧侧边栏会把 CLI 里的功能拆成不同视图。OAuth 页面会直接启动浏览器登录，并由后端自动抓取 token，无需手动复制。</p>
-                <div class="hero-actions" style="margin-top: 18px;">
-                    <button class="primary" id="refreshBtn">刷新数据</button>
-                    <button class="secondary" id="copyConfigBtn">复制配置文件路径</button>
-                    <a class="button-link ghost" href="https://www.kimi.com" target="_blank" rel="noreferrer">打开 Kimi
-                        官网</a>
-                </div>
-                <div class="stats-grid" id="statsGrid"></div>
-            </section>
-
             <section class="view" data-view="overview">
+                <section class="hero">
+                    <div class="eyebrow" id="heroEyebrow">Overview</div>
+                    <h2 id="heroTitle">统一管理 Kimi2API 的运行配置和账号。</h2>
+                    <p id="heroDescription">左侧侧边栏会把 CLI 里的功能拆成不同视图。OAuth 页面会直接启动浏览器登录，并由后端自动抓取 token，无需手动复制。</p>
+                    <div class="hero-actions" style="margin-top: 18px;">
+                        <button class="primary" id="refreshBtn">刷新数据</button>
+                        <button class="secondary" id="copyConfigBtn">复制配置文件路径</button>
+                        <a class="button-link ghost" href="https://www.kimi.com" target="_blank" rel="noreferrer">打开
+                            Kimi
+                            官网</a>
+                    </div>
+                    <div class="stats-grid" id="statsGrid"></div>
+                </section>
+
                 <div class="cards-grid">
                     <article class="surface">
                         <div class="surface-header">
@@ -698,6 +717,12 @@
             </section>
 
             <section class="view" data-view="accounts">
+                <section class="page-header">
+                    <div class="eyebrow" id="pageEyebrow">Accounts</div>
+                    <h2 id="pageTitle">管理 JWT 账号，并控制当前活动账号。</h2>
+                    <p id="pageDescription">这里对应 CLI 里的 token 与账号管理能力，支持保存、校验、启用、禁用和删除。</p>
+                </section>
+
                 <div class="two-col">
                     <article class="surface">
                         <div class="surface-header">
@@ -765,6 +790,12 @@
             </section>
 
             <section class="view" data-view="oauth">
+                <section class="page-header">
+                    <div class="eyebrow" id="oauthEyebrow">OAuth</div>
+                    <h2 id="oauthTitle">通过浏览器登录自动获取 Kimi token。</h2>
+                    <p id="oauthDescription">点击启动后，后端会打开浏览器窗口并自动抓取 token。只要完成登录，不需要手动复制。</p>
+                </section>
+
                 <div class="oauth-grid">
                     <article class="surface">
                         <div class="surface-header">
@@ -821,6 +852,12 @@
             </section>
 
             <section class="view" data-view="models">
+                <section class="page-header">
+                    <div class="eyebrow" id="modelsEyebrow">Models</div>
+                    <h2 id="modelsTitle">维护 OpenAI 模型名到 Kimi 模型名的映射。</h2>
+                    <p id="modelsDescription">适合把调用方的公开模型名，映射到真实的 Kimi 模型。</p>
+                </section>
+
                 <article class="surface">
                     <div class="surface-header">
                         <div class="surface-title">
@@ -851,6 +888,12 @@
             </section>
 
             <section class="view" data-view="keys">
+                <section class="page-header">
+                    <div class="eyebrow" id="keysEyebrow">API Keys</div>
+                    <h2 id="keysTitle">管理访问代理服务的 API Key。</h2>
+                    <p id="keysDescription">创建后的 Key 只显示一次明文，后续只保留前缀和状态。</p>
+                </section>
+
                 <article class="surface">
                     <div class="surface-header">
                         <div class="surface-title">
@@ -879,6 +922,12 @@
             </section>
 
             <section class="view" data-view="settings">
+                <section class="page-header">
+                    <div class="eyebrow" id="settingsEyebrow">Settings</div>
+                    <h2 id="settingsTitle">调整服务监听参数和默认账号。</h2>
+                    <p id="settingsDescription">这一页对应 CLI 中的 config show、set-port、set-host 等配置能力。</p>
+                </section>
+
                 <div class="two-col">
                     <article class="surface">
                         <div class="surface-header">
@@ -1110,9 +1159,9 @@
 
         function renderHero() {
             const current = views[state.currentView] || views.overview;
-            els.heroEyebrow.textContent = current.eyebrow;
-            els.heroTitle.textContent = current.title;
-            els.heroDescription.textContent = current.description;
+            if (els.heroEyebrow) els.heroEyebrow.textContent = current.eyebrow;
+            if (els.heroTitle) els.heroTitle.textContent = current.title;
+            if (els.heroDescription) els.heroDescription.textContent = current.description;
         }
 
         function renderNav() {
