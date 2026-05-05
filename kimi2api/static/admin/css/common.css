@@ -38,7 +38,11 @@ body {
     background: transparent;
 }
 
-h1, h2, h3, h4, p {
+h1,
+h2,
+h3,
+h4,
+p {
     margin: 0;
 }
 
@@ -372,12 +376,29 @@ h1, h2, h3, h4, p {
     resize: vertical;
 }
 
-.span-12 { grid-column: span 12; }
-.span-9 { grid-column: span 9; }
-.span-8 { grid-column: span 8; }
-.span-6 { grid-column: span 6; }
-.span-4 { grid-column: span 4; }
-.span-3 { grid-column: span 3; }
+.span-12 {
+    grid-column: span 12;
+}
+
+.span-9 {
+    grid-column: span 9;
+}
+
+.span-8 {
+    grid-column: span 8;
+}
+
+.span-6 {
+    grid-column: span 6;
+}
+
+.span-4 {
+    grid-column: span 4;
+}
+
+.span-3 {
+    grid-column: span 3;
+}
 
 button,
 .button-link {
@@ -479,8 +500,13 @@ button:disabled {
 }
 
 @keyframes pulse {
-    from { transform: translateX(-18%); }
-    to { transform: translateX(120%); }
+    from {
+        transform: translateX(-18%);
+    }
+
+    to {
+        transform: translateX(120%);
+    }
 }
 
 .table {
