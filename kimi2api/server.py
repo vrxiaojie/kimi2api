@@ -10,13 +10,24 @@ import uuid
 import logging
 from typing import Optional
 
-from flask import Flask, request, Response, jsonify, stream_with_context
+from dataclasses import asdict
 
-from .config import config, reload_config
-from .auth import token_manager
+from flask import Flask, request, Response, jsonify, stream_with_context, render_template
+
+from .config import (
+    config,
+    reload_config,
+    save_config,
+    KimiAccount,
+    get_active_account,
+    set_active_account,
+    get_active_kimi_token,
+)
+from .auth import token_manager, validate_kimi_token
 from .kimi_client import KimiClient
 from .stream_handler import KimiStreamHandler, generate_sse_events
 from .apikey_manager import api_key_manager
+from .oauth_login import oauth_login_manager
 
 # Configure logging
 logging.basicConfig(
@@ -29,6 +40,57 @@ app = Flask(__name__)
 
 # Public paths that don't require authentication
 PUBLIC_PATHS = {"/", "/health", "/stats", "/v1/models"}
+
+
+def _serialize_account(account: KimiAccount, include_token: bool = False) -> dict:
+    data = asdict(account)
+    if not include_token:
+        token = data.get("token", "")
+        if token:
+            data["token"] = f"{token[:6]}...{token[-4:]}" if len(token) > 10 else "***"
+    return data
+
+
+def _serialize_api_key(api_key) -> dict:
+    return {
+        "prefix": api_key.prefix,
+        "name": api_key.name,
+        "created_at": api_key.created_at,
+        "last_used_at": api_key.last_used_at,
+        "enabled": api_key.enabled,
+    }
+
+
+def _serialize_state() -> dict:
+    active_account = get_active_account(config)
+    oauth_state = oauth_login_manager.get_status()
+    return {
+        "config": {
+            "host": config.host,
+            "port": config.port,
+            "log_level": config.log_level,
+            "enable_api_key": config.enable_api_key,
+            "kimi_token_configured": bool(get_active_kimi_token(config)),
+            "active_account_id": config.active_account_id,
+            "accounts_count": len(config.accounts),
+        },
+        "accounts": [_serialize_account(account) for account in config.accounts],
+        "active_account_id": active_account.id if active_account else "",
+        "models": [
+            {"openai_model": openai_model, "kimi_model": kimi_model}
+            for openai_model, kimi_model in config.model_mapping.items()
+        ],
+        "api_keys": [_serialize_api_key(api_key) for api_key in api_key_manager.list_keys()],
+        "oauth": oauth_state,
+    }
+
+
+def _mask_credentials(data: dict) -> dict:
+    masked = dict(data)
+    if masked.get("token"):
+        token = str(masked["token"])
+        masked["token"] = f"{token[:6]}...{token[-4:]}" if len(token) > 10 else "***"
+    return masked
 
 
 def _require_api_key():
@@ -52,9 +114,10 @@ def _require_api_key():
 
 def _get_kimi_client() -> KimiClient:
     """Get a KimiClient instance with the configured token"""
-    if not config.kimi_token:
+    token = get_active_kimi_token(config)
+    if not token:
         raise ValueError("Kimi token is not configured. Use 'kimi2api config set-token <your_token>' first.")
-    return KimiClient(config.kimi_token)
+    return KimiClient(token)
 
 
 def _extract_user_input(messages: list[dict]) -> Optional[str]:
@@ -94,11 +157,18 @@ def root():
         "service": "kimi2api",
         "version": "1.0.0",
         "status": "running",
+        "admin": "/admin",
         "endpoints": {
             "chat_completions": "/v1/chat/completions",
             "models": "/v1/models",
         },
     })
+
+
+@app.route("/admin", methods=["GET"])
+def admin():
+    """Render the web admin dashboard."""
+    return render_template("admin.html")
 
 
 @app.route("/health", methods=["GET"])
@@ -112,8 +182,10 @@ def stats():
     """Server statistics"""
     return jsonify({
         "api_keys_count": len(api_key_manager.list_keys()),
-        "kimi_token_configured": bool(config.kimi_token),
-        "kimi_token_type": token_manager.detect_token_type(config.kimi_token) if config.kimi_token else "none",
+        "accounts_count": len(config.accounts),
+        "active_account_id": config.active_account_id,
+        "kimi_token_configured": bool(get_active_kimi_token(config)),
+        "kimi_token_type": token_manager.detect_token_type(get_active_kimi_token(config)) if get_active_kimi_token(config) else "none",
     })
 
 
@@ -144,6 +216,256 @@ def list_models():
             })
 
     return jsonify({"object": "list", "data": models})
+
+
+@app.route("/admin/api/bootstrap", methods=["GET"])
+def admin_bootstrap():
+    """Return the full management state for the web dashboard."""
+    return jsonify(_serialize_state())
+
+
+@app.route("/admin/api/config", methods=["GET", "PUT"])
+def admin_config():
+    """Read or update core server configuration."""
+    if request.method == "GET":
+        return jsonify(_serialize_state()["config"])
+
+    payload = request.get_json(force=True, silent=True) or {}
+
+    if "host" in payload and payload["host"]:
+        config.host = str(payload["host"]).strip()
+    if "port" in payload and payload["port"]:
+        config.port = int(payload["port"])
+    if "log_level" in payload and payload["log_level"]:
+        config.log_level = str(payload["log_level"]).upper()
+    if "enable_api_key" in payload:
+        config.enable_api_key = bool(payload["enable_api_key"])
+
+    if "active_account_id" in payload and payload["active_account_id"]:
+        active_account = set_active_account(config, str(payload["active_account_id"]))
+        if not active_account:
+            return jsonify({"error": {"message": "Active account not found", "type": "invalid_request_error"}}), 404
+
+    save_config(config)
+    return jsonify(_serialize_state()["config"])
+
+
+@app.route("/admin/api/accounts", methods=["GET", "POST"])
+def admin_accounts():
+    """List accounts or create a new Kimi account."""
+    if request.method == "GET":
+        return jsonify({
+            "accounts": [_serialize_account(account) for account in config.accounts],
+            "active_account_id": config.active_account_id,
+        })
+
+    payload = request.get_json(force=True, silent=True) or {}
+    name = str(payload.get("name") or "").strip()
+    token = str(payload.get("token") or "").strip()
+    auth_method = str(payload.get("auth_method") or "jwt").strip().lower()
+    notes = str(payload.get("notes") or "").strip()
+    enabled = bool(payload.get("enabled", True))
+    activate = bool(payload.get("activate", True))
+
+    if not name:
+        return jsonify({"error": {"message": "Missing required field: name", "type": "invalid_request_error"}}), 400
+    if not token:
+        return jsonify({"error": {"message": "Missing required field: token", "type": "invalid_request_error"}}), 400
+
+    validation = validate_kimi_token(token)
+    if not validation.get("valid"):
+        return jsonify({"error": {"message": validation.get("error", "Token validation failed"), "type": "validation_error"}}), 400
+
+    now = time.time()
+    account = KimiAccount(
+        id=f"acct-{uuid.uuid4().hex[:12]}",
+        name=name,
+        auth_method=auth_method or "jwt",
+        token=token,
+        token_type=validation.get("token_type") or auth_method or "jwt",
+        created_at=now,
+        updated_at=now,
+        enabled=enabled,
+        notes=notes,
+        user_id=(validation.get("account_info") or {}).get("user_id", ""),
+        source="oauth" if auth_method == "oauth" else "jwt",
+    )
+
+    config.accounts.append(account)
+    if activate or not config.active_account_id:
+        set_active_account(config, account.id)
+    save_config(config)
+
+    return jsonify({
+        "account": _serialize_account(account),
+        "validation": validation,
+        "active_account_id": config.active_account_id,
+    }), 201
+
+
+@app.route("/admin/api/oauth/start", methods=["POST"])
+def admin_oauth_start():
+    """Start the browser-based OAuth login flow."""
+    payload = request.get_json(force=True, silent=True) or {}
+    name = str(payload.get("name") or "").strip()
+    notes = str(payload.get("notes") or "").strip()
+    activate = bool(payload.get("activate", True))
+
+    try:
+        session = oauth_login_manager.start_login(name, notes=notes, activate=activate)
+    except RuntimeError as error:
+        return jsonify({"error": {"message": str(error), "type": "conflict_error"}}), 409
+
+    return jsonify({"session": session}), 202
+
+
+@app.route("/admin/api/oauth/status", methods=["GET"])
+def admin_oauth_status():
+    """Return current OAuth login session state."""
+    return jsonify(oauth_login_manager.get_status())
+
+
+@app.route("/admin/api/oauth/cancel", methods=["POST"])
+def admin_oauth_cancel():
+    """Cancel the current OAuth login flow."""
+    return jsonify(oauth_login_manager.cancel())
+
+
+@app.route("/admin/api/accounts/<account_id>", methods=["PUT", "DELETE"])
+def admin_account_detail(account_id: str):
+    """Update or delete an account."""
+    account = next((item for item in config.accounts if item.id == account_id), None)
+    if not account:
+        return jsonify({"error": {"message": "Account not found", "type": "not_found"}}), 404
+
+    if request.method == "DELETE":
+        config.accounts = [item for item in config.accounts if item.id != account_id]
+        if config.active_account_id == account_id:
+            if config.accounts:
+                config.active_account_id = config.accounts[0].id
+                set_active_account(config, config.active_account_id)
+            else:
+                config.active_account_id = ""
+                config.kimi_token = ""
+        save_config(config)
+        return jsonify({"deleted": True, "id": account_id, "active_account_id": config.active_account_id})
+
+    payload = request.get_json(force=True, silent=True) or {}
+    if "name" in payload and str(payload["name"]).strip():
+        account.name = str(payload["name"]).strip()
+    if "notes" in payload:
+        account.notes = str(payload["notes"] or "").strip()
+    if "enabled" in payload:
+        account.enabled = bool(payload["enabled"])
+    if "auth_method" in payload and payload["auth_method"]:
+        account.auth_method = str(payload["auth_method"]).strip().lower()
+    if "token" in payload and str(payload["token"]).strip():
+        token = str(payload["token"]).strip()
+        validation = validate_kimi_token(token)
+        if not validation.get("valid"):
+            return jsonify({"error": {"message": validation.get("error", "Token validation failed"), "type": "validation_error"}}), 400
+        account.token = token
+        account.token_type = validation.get("token_type") or account.token_type
+        account.user_id = (validation.get("account_info") or {}).get("user_id", account.user_id)
+    account.updated_at = time.time()
+
+    if config.active_account_id == account.id:
+        config.kimi_token = account.token
+
+    save_config(config)
+    return jsonify({"account": _serialize_account(account), "active_account_id": config.active_account_id})
+
+
+@app.route("/admin/api/accounts/<account_id>/activate", methods=["POST"])
+def admin_account_activate(account_id: str):
+    """Mark an account as the active Kimi token."""
+    active_account = set_active_account(config, account_id)
+    if not active_account:
+        return jsonify({"error": {"message": "Account not found", "type": "not_found"}}), 404
+
+    save_config(config)
+    return jsonify({"active_account_id": active_account.id, "account": _serialize_account(active_account)})
+
+
+@app.route("/admin/api/accounts/<account_id>/validate", methods=["POST"])
+def admin_account_validate(account_id: str):
+    """Validate an account's token against Kimi."""
+    account = next((item for item in config.accounts if item.id == account_id), None)
+    if not account:
+        return jsonify({"error": {"message": "Account not found", "type": "not_found"}}), 404
+
+    validation = validate_kimi_token(account.token)
+    if validation.get("valid"):
+        account.updated_at = time.time()
+        account.user_id = (validation.get("account_info") or {}).get("user_id", account.user_id)
+        if config.active_account_id == account.id:
+            config.kimi_token = account.token
+        save_config(config)
+    return jsonify(validation)
+
+
+@app.route("/admin/api/models", methods=["GET", "POST"])
+def admin_models():
+    """List or create model mappings."""
+    if request.method == "GET":
+        return jsonify({"models": _serialize_state()["models"]})
+
+    payload = request.get_json(force=True, silent=True) or {}
+    openai_model = str(payload.get("openai_model") or "").strip()
+    kimi_model = str(payload.get("kimi_model") or "").strip()
+
+    if not openai_model or not kimi_model:
+        return jsonify({"error": {"message": "Missing required fields: openai_model and kimi_model", "type": "invalid_request_error"}}), 400
+
+    config.model_mapping[openai_model] = kimi_model
+    save_config(config)
+    return jsonify({"openai_model": openai_model, "kimi_model": kimi_model}), 201
+
+
+@app.route("/admin/api/models/<path:openai_model>", methods=["DELETE"])
+def admin_model_delete(openai_model: str):
+    """Delete a model mapping."""
+    if openai_model not in config.model_mapping:
+        return jsonify({"error": {"message": "Model mapping not found", "type": "not_found"}}), 404
+
+    del config.model_mapping[openai_model]
+    save_config(config)
+    return jsonify({"deleted": True, "openai_model": openai_model})
+
+
+@app.route("/admin/api/api-keys", methods=["GET", "POST"])
+def admin_api_keys():
+    """List or create API keys."""
+    if request.method == "GET":
+        return jsonify({"api_keys": [_serialize_api_key(api_key) for api_key in api_key_manager.list_keys()]})
+
+    payload = request.get_json(force=True, silent=True) or {}
+    key = api_key_manager.create_key(str(payload.get("name") or ""))
+    return jsonify({"key": key, "message": "Save this key - it will not be shown again!"}), 201
+
+
+@app.route("/admin/api/api-keys/<prefix_or_name>/revoke", methods=["POST"])
+def admin_api_key_revoke(prefix_or_name: str):
+    """Revoke an API key."""
+    if not api_key_manager.revoke_key(prefix_or_name):
+        return jsonify({"error": "Key not found"}), 404
+    return jsonify({"message": f"Key '{prefix_or_name}' revoked"})
+
+
+@app.route("/admin/api/api-keys/<prefix_or_name>/enable", methods=["POST"])
+def admin_api_key_enable(prefix_or_name: str):
+    """Enable an API key."""
+    if not api_key_manager.enable_key(prefix_or_name):
+        return jsonify({"error": "Key not found"}), 404
+    return jsonify({"message": f"Key '{prefix_or_name}' enabled"})
+
+
+@app.route("/admin/api/api-keys/<prefix_or_name>", methods=["DELETE"])
+def admin_api_key_delete(prefix_or_name: str):
+    """Delete an API key."""
+    if not api_key_manager.delete_key(prefix_or_name):
+        return jsonify({"error": "Key not found"}), 404
+    return jsonify({"message": f"Key '{prefix_or_name}' deleted"})
 
 
 @app.route("/v1/chat/completions", methods=["POST"])

@@ -2,7 +2,7 @@
 
 Kimi 网页版 Chat 转 OpenAI 兼容 API 的命令行代理工具。
 
-基于对 Chat2API（TypeScript/Electron）项目中 Kimi 相关代码的逆向分析，用 Python 重新实现了核心逻辑：将 Kimi 内部 gRPC-Web 协议转换为标准 OpenAI `/v1/chat/completions` 接口。
+基于对 Chat2API（TypeScript/Electron）项目中 Kimi 相关代码的逆向分析，用 Python 重新实现了核心逻辑：将 Kimi 内部 gRPC-Web 协议转换为标准 OpenAI `/v1/chat/completions` 接口，并提供一个带侧边栏的网页管理台来管理账号、OAuth 登录、模型映射和 API Key。
 
 ## 功能
 
@@ -13,12 +13,15 @@ Kimi 网页版 Chat 转 OpenAI 兼容 API 的命令行代理工具。
 - **函数调用**：通过 `tools` 参数 + 提示注入实现工具调用
 - **API Key 管理**：创建、列表、吊销、删除 API Key
 - **多模型映射**：自定义 OpenAI 模型名 → Kimi 模型名
+- **网页管理台**：浏览器里直接管理账号、配置和密钥
+- **自动 OAuth 登录**：打开浏览器登录 Kimi，并自动抓取有效 token 保存为账号
 
 ## 安装
 
 ```bash
-cd kimi2api_python
+cd kimi2api
 pip install -r requirements.txt
+python -m playwright install chromium
 ```
 
 ## 快速开始
@@ -40,6 +43,13 @@ Token 有两种类型：
 python run.py config set-token "你的Kimi_Token"
 ```
 
+也可以直接打开网页管理台：
+
+- 启动后访问 `http://127.0.0.1:8080/admin`
+- 在左侧侧边栏切换到不同页面管理账号、OAuth、模型映射和 API Key
+- OAuth 页面会自动打开浏览器登录并抓取 token，不需要手动复制
+- 账号、模型映射和 API Key 会写入项目根目录的 `config.json`
+
 ### 3. 创建 API Key（可选）
 
 ```bash
@@ -51,6 +61,11 @@ python run.py keys create --name "my-app"
 ```bash
 python run.py serve --port 8080
 ```
+
+启动后可以访问：
+
+- `http://127.0.0.1:8080/admin`：网页管理台
+- `http://127.0.0.1:8080/health`：健康检查
 
 ### 5. 调用 API
 
@@ -112,6 +127,13 @@ python run.py serve --host 0.0.0.0 --port 8080
 | `/v0/management/api-keys` | GET | 列出 API Key |
 | `/v0/management/api-keys` | POST | 创建 API Key |
 | `/v0/management/api-keys/<id>` | DELETE | 吊销 API Key |
+| `/admin` | GET | 网页管理台 |
+
+## 配置文件
+
+- **主配置**：项目根目录的 `config.json`
+- **模板文件**：`config.example.json`
+- **旧配置兼容**：仍会读取 `~/.kimi2api/config.json`，便于迁移
 
 ## 技术细节
 

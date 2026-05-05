@@ -7,7 +7,7 @@ import sys
 import argparse
 from typing import Optional
 
-from .config import config, save_config, reload_config, CONFIG_DIR
+from .config import config, save_config, reload_config, CONFIG_FILE, get_active_account, get_active_kimi_token
 from .apikey_manager import api_key_manager
 from .server import run_server
 
@@ -16,16 +16,21 @@ def cmd_config(args) -> int:
     """Show or update configuration"""
     if args.action == "show":
         print("=== Kimi2API Configuration ===")
-        print(f"Config file: {config.__class__.__module__}")
+        print(f"Config file: {CONFIG_FILE}")
         print(f"Host: {config.host}")
         print(f"Port: {config.port}")
-        print(f"Kimi Token: {'***configured***' if config.kimi_token else 'NOT SET'}")
+        print(f"Kimi Token: {'***configured***' if get_active_kimi_token(config) else 'NOT SET'}")
         print(f"API Key Auth: {'enabled' if config.enable_api_key else 'disabled'}")
         print(f"API Keys: {len(api_key_manager.list_keys())} keys")
+        print(f"Accounts: {len(config.accounts)}")
+        active_account = get_active_account(config)
+        if active_account:
+            print(f"Active Account: {active_account.name} ({active_account.id})")
         print(f"Log Level: {config.log_level}")
         print("\nModel Mappings:")
         for k, v in config.model_mapping.items():
             print(f"  {k} -> {v}")
+        print("\nAdmin UI: http://{host}:{port}/admin".format(host=config.host, port=config.port))
         return 0
 
     elif args.action == "set-token":
@@ -143,9 +148,10 @@ def cmd_serve(args) -> int:
     print(f"  Kimi Token: {'Configured' if config.kimi_token else 'NOT SET!'}")
     print(f"  API Endpoint: http://{host}:{port}/v1/chat/completions")
     print(f"  Health Check: http://{host}:{port}/health")
+    print(f"  Admin UI: http://{host}:{port}/admin")
     print("=" * 50)
 
-    if not config.kimi_token:
+    if not get_active_kimi_token(config):
         print("\nWARNING: Kimi token is not configured!")
         print("Run: kimi2api config set-token <your_token>")
         print("Get your token from: https://www.kimi.com (F12 -> Application -> Cookies/Local Storage)")

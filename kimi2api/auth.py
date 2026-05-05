@@ -205,5 +205,57 @@ class TokenManager:
         self._cache.pop(raw_token, None)
 
 
+def validate_kimi_token(raw_token: str) -> dict:
+    """Validate a Kimi token against the subscription API."""
+    if not raw_token:
+        return {
+            "valid": False,
+            "error": "Token cannot be empty",
+        }
+
+    token_type = token_manager.detect_token_type(raw_token)
+    try:
+        url = f"{KIMI_API_BASE}/apiv2/kimi.gateway.order.v1.SubscriptionService/GetSubscription"
+        headers = {
+            **FAKE_HEADERS,
+            "Authorization": f"Bearer {raw_token}",
+            "Content-Type": "application/json",
+            "Connect-Protocol-Version": "1",
+        }
+        response = requests.post(url, json={}, headers=headers, timeout=30)
+
+        if response.status_code != 200:
+            return {
+                "valid": False,
+                "token_type": token_type,
+                "error": f"Validation failed ({response.status_code})",
+            }
+
+        data = response.json() if response.content else {}
+        subscription = data.get("subscription") or {}
+        if not subscription:
+            return {
+                "valid": False,
+                "token_type": token_type,
+                "error": "Token is invalid or expired",
+            }
+
+        return {
+            "valid": True,
+            "token_type": token_type,
+            "account_info": {
+                "user_id": subscription.get("userId") or "",
+                "name": subscription.get("userName") or "",
+                "email": subscription.get("email") or "",
+            },
+        }
+    except Exception as e:
+        return {
+            "valid": False,
+            "token_type": token_type,
+            "error": str(e),
+        }
+
+
 # Singleton instance
 token_manager = TokenManager()
