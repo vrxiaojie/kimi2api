@@ -17,10 +17,21 @@ Kimi 网页版 Chat 转 OpenAI 兼容 API 的命令行代理工具。
 - **curl 导入账号**：粘贴浏览器开发者工具复制的 curl 文本，自动提取 `auth` token 保存为账号
 
 ## 安装
+clone本仓库
 
+```bash
+git clone https://github.com/vrxiaojie/kimi2api.git
+```
+
+安装python依赖
 ```bash
 cd kimi2api
 pip install -r requirements.txt
+```
+
+复制配置文件
+```bash
+cp config.example.json config.json
 ```
 
 ## 快速开始
@@ -53,14 +64,13 @@ python run.py config set-token "你的Kimi_Token"
 
 ### Docker 运行
 
-构建镜像：
+#### 构建镜像
 
 ```bash
 docker build -t kimi2api:latest .
 ```
 
-推荐把容器内配置文件挂载到可写目录，而不是只读挂载到 `/app/config.json`。镜像默认使用：`/data/config.json`
-
+#### 运行镜像
 ```bash
 docker run -d \
   --name kimi2api \
@@ -68,18 +78,6 @@ docker run -d \
   -v "$(pwd)/config.json:/data/config.json" \
   kimi2api:latest
 ```
-
-如果首次运行本地还没有 `config.json`，也可以直接挂载目录：
-
-```bash
-docker run -d \
-  --name kimi2api \
-  -p 8080:8080 \
-  -v "$(pwd)/docker-data:/data" \
-  kimi2api:latest
-```
-
-不要把配置文件以只读方式挂载，否则在管理台里启用/禁用账号、保存设置、写入 API Key 时都会因为无法写回配置而报错。
 
 ### 3. 从账号页导入 curl（推荐）
 
@@ -90,7 +88,7 @@ docker run -d \
 5. 把完整 curl 文本粘贴到“从 curl 导入”表单
 6. 保存后后端会自动提取 Cookie 中 `auth=...;` 的值，并创建账号
 
-### 4. 创建 API Key（可选）
+### 4. 创建 API Key
 
 ```bash
 python run.py keys create --name "my-app"
