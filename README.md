@@ -51,6 +51,36 @@ python run.py config set-token "你的Kimi_Token"
 - 后端会从 curl 文本中提取 `auth=` 到第一个分号之间的内容，并立即校验后保存为账号
 - 账号、模型映射和 API Key 会写入项目根目录的 `config.json`
 
+### Docker 运行
+
+构建镜像：
+
+```bash
+docker build -t kimi2api:latest .
+```
+
+推荐把容器内配置文件挂载到可写目录，而不是只读挂载到 `/app/config.json`。镜像默认使用：`/data/config.json`
+
+```bash
+docker run -d \
+  --name kimi2api \
+  -p 8080:8080 \
+  -v "$(pwd)/config.json:/data/config.json" \
+  kimi2api:latest
+```
+
+如果首次运行本地还没有 `config.json`，也可以直接挂载目录：
+
+```bash
+docker run -d \
+  --name kimi2api \
+  -p 8080:8080 \
+  -v "$(pwd)/docker-data:/data" \
+  kimi2api:latest
+```
+
+不要把配置文件以只读方式挂载，否则在管理台里启用/禁用账号、保存设置、写入 API Key 时都会因为无法写回配置而报错。
+
 ### 3. 从账号页导入 curl（推荐）
 
 1. 打开 `http://127.0.0.1:8080/admin`

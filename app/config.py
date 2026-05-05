@@ -10,7 +10,7 @@ from dataclasses import dataclass, field, asdict
 from typing import Optional
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
-CONFIG_FILE = os.path.join(PROJECT_ROOT, "config.json")
+CONFIG_FILE = os.environ.get("KIMI2API_CONFIG") or os.path.join(PROJECT_ROOT, "config.json")
 LEGACY_CONFIG_FILE = os.path.join(os.path.expanduser("~"), ".kimi2api", "config.json")
 
 
