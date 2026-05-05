@@ -83,9 +83,7 @@ const AdminState = {
     models: [],
     apiKeys: [],
     activeAccountId: '',
-    oauth: { active: false, session: null },
     currentView: 'overview',
-    oauthPollTimer: null,
     latestCreatedKey: '',
 };
 
@@ -96,17 +94,12 @@ const AdminViews = {
     overview: {
         eyebrow: 'Overview',
         title: '统一管理 Kimi2API 的运行配置和账号。',
-        description: '概览页提供账号数量、映射、API Key 和 OAuth 状态的总览，并给出常用入口。',
+        description: '概览页提供账号数量、映射、API Key 和配置状态的总览，并给出常用入口。',
     },
     accounts: {
         eyebrow: 'Accounts',
-        title: '管理 JWT 账号，并控制当前活动账号。',
-        description: '这里对应 CLI 里的 token 与账号管理能力，支持保存、校验、激活和删除。',
-    },
-    oauth: {
-        eyebrow: 'OAuth',
-        title: '通过浏览器登录自动获取 Kimi token。',
-        description: '点击启动后，后端会打开浏览器窗口并自动抓取 token。只要完成登录，不需要手动复制。',
+        title: '管理账号，并支持从 curl 导入 auth token。',
+        description: '这里对应 CLI 里的 token 与账号管理能力，支持手动保存、从 curl 提取 auth、校验、激活和删除。',
     },
     models: {
         eyebrow: 'Models',
@@ -124,5 +117,3 @@ const AdminViews = {
         description: '这一页对应 CLI 中的 config show、set-port、set-host 等配置能力。',
     },
 };
-
-const oauthPendingStatuses = new Set(['starting', 'waiting', 'validating']);

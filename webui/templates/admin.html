@@ -15,7 +15,7 @@
             <section class="brand">
                 <div class="eyebrow">Kimi2API Console</div>
                 <h1>网页管理台</h1>
-                <p>把账号、OAuth 登录、模型映射、API Key 和运行参数从 CLI 集中到一个后台里。</p>
+                <p>把账号、curl 导入、模型映射、API Key 和运行参数从 CLI 集中到一个后台里。</p>
             </section>
 
             <nav class="nav" id="sidebarNav">
@@ -25,11 +25,7 @@
                 </button>
                 <button class="nav-btn" data-view="accounts">
                     <strong>账号</strong>
-                    <span>JWT 账号管理、激活、验证和删除</span>
-                </button>
-                <button class="nav-btn" data-view="oauth">
-                    <strong>OAuth 登录</strong>
-                    <span>打开浏览器登录，并自动抓取 Kimi token</span>
+                    <span>JWT 账号管理、curl 导入、激活、验证和删除</span>
                 </button>
                 <button class="nav-btn" data-view="models">
                     <strong>模型映射</strong>
@@ -60,11 +56,13 @@
                 <section class="hero">
                     <div class="eyebrow" id="heroEyebrow">Overview</div>
                     <h2 id="heroTitle">统一管理 Kimi2API 的运行配置和账号。</h2>
-                    <p id="heroDescription">左侧侧边栏会把 CLI 里的功能拆成不同视图。OAuth 页面会直接启动浏览器登录，并由后端自动抓取 token，无需手动复制。</p>
+                    <p id="heroDescription">左侧侧边栏会把 CLI 里的功能拆成不同视图。账号页支持手动粘贴 token，也支持直接粘贴浏览器复制的 curl 请求并提取 auth token。
+                    </p>
                     <div class="hero-actions" style="margin-top: 18px;">
                         <button class="primary" id="refreshBtn">刷新数据</button>
                         <button class="secondary" id="copyConfigBtn">复制配置文件路径</button>
-                        <a class="button-link ghost" href="https://www.kimi.com" target="_blank" rel="noreferrer">打开 Kimi 官网</a>
+                        <a class="button-link ghost" href="https://www.kimi.com" target="_blank" rel="noreferrer">打开
+                            Kimi 官网</a>
                     </div>
                     <div class="stats-grid" id="statsGrid"></div>
                 </section>
@@ -75,13 +73,14 @@
                             <div class="surface-title">
                                 <div class="section-label">快速说明</div>
                                 <h3>账号接入方式</h3>
-                                <p class="subtle">JWT 适合已有 token 的场景，OAuth 适合直接浏览器登录获取。</p>
+                                <p class="subtle">支持直接粘贴 token，也支持从浏览器开发者工具复制 curl 后自动提取 auth。</p>
                             </div>
                         </div>
                         <div class="muted-box">
-                            <strong>JWT 添加：</strong> 直接粘贴 access_token 或 refresh token，保存前会自动校验。
+                            <strong>手动添加：</strong> 直接粘贴 access_token、refresh token 或其他可用 token，保存前会自动校验。
                             <br /><br />
-                            <strong>OAuth 添加：</strong> 点击启动登录后，后端会打开浏览器窗口，监听 Kimi 页面请求和存储数据，拿到有效 token 后自动保存账号。
+                            <strong>curl 导入：</strong> 在浏览器 F12 的网络面板里复制任意 Kimi 请求为 curl，粘贴后后端会自动提取 Cookie 里的 auth
+                            值并保存账号。
                             <br /><br />
                             <strong>配置位置：</strong> 项目根目录的 config.json。
                         </div>
@@ -96,8 +95,8 @@
                             </div>
                         </div>
                         <div class="stack">
-                            <button class="primary" data-jump-view="oauth">启动 OAuth 登录</button>
-                            <button class="secondary" data-jump-view="accounts">新增 JWT 账号</button>
+                            <button class="primary" data-jump-view="accounts">导入 curl 账号</button>
+                            <button class="secondary" data-jump-view="accounts">新增手动账号</button>
                             <button class="secondary" data-jump-view="models">添加模型映射</button>
                             <button class="secondary" data-jump-view="keys">创建 API Key</button>
                         </div>
@@ -111,17 +110,17 @@
             <section class="view" data-view="accounts">
                 <section class="page-header">
                     <div class="eyebrow">Accounts</div>
-                    <h2>管理 JWT 账号，并控制当前活动账号。</h2>
-                    <p>这里对应 CLI 里的 token 与账号管理能力，支持保存、校验、启用、禁用和删除。</p>
+                    <h2>管理账号，并控制当前活动账号。</h2>
+                    <p>这里对应 CLI 里的 token 与账号管理能力，支持手动保存、从 curl 提取 auth、校验、启用、禁用和删除。</p>
                 </section>
 
                 <div class="two-col">
                     <article class="surface">
                         <div class="surface-header">
                             <div class="surface-title">
-                                <div class="section-label">账号管理</div>
-                                <h3>JWT 账号</h3>
-                                <p class="subtle">可创建、验证、启用、禁用和删除账号。</p>
+                                <div class="section-label">手动添加</div>
+                                <h3>直接粘贴 token</h3>
+                                <p class="subtle">适合你已经拿到 token，想快速保存、验证、启用或切换账号。</p>
                             </div>
                             <div class="stack">
                                 <span class="pill accent" id="accountsCountPill">0 accounts</span>
@@ -145,7 +144,6 @@
                             <div class="span-12 button-row">
                                 <button class="primary" type="submit" id="accountSubmitBtn">新增账号</button>
                                 <button class="secondary" type="button" id="accountResetBtn">清空表单</button>
-                                <button class="ghost" type="button" data-jump-view="oauth">改用 OAuth 登录</button>
                             </div>
                         </form>
                     </article>
@@ -153,17 +151,43 @@
                     <article class="surface">
                         <div class="surface-header">
                             <div class="surface-title">
-                                <div class="section-label">接入建议</div>
-                                <h3>什么时候用 JWT</h3>
-                                <p class="subtle">适用于你已经有 token，或者想快速切换多个已知账号的场景。</p>
+                                <div class="section-label">curl 导入</div>
+                                <h3>粘贴浏览器复制的 curl</h3>
+                                <p class="subtle">适合你不想手动找 token，只想从开发者工具复制一次请求后直接导入。</p>
                             </div>
                         </div>
+                        <form id="curlImportForm" class="form-grid">
+                            <div class="field span-12">
+                                <label for="curlAccountNameInput">账号名称</label>
+                                <input id="curlAccountNameInput" placeholder="Kimi Curl Account" />
+                            </div>
+                            <div class="field span-12">
+                                <label for="curlCommandInput">curl 文本</label>
+                                <textarea id="curlCommandInput" placeholder="粘贴浏览器网络面板里“复制为 curl”的完整内容"></textarea>
+                            </div>
+                            <div class="field span-12">
+                                <label for="curlNotesInput">备注</label>
+                                <textarea id="curlNotesInput" placeholder="可选：记录请求来源、环境或用途"></textarea>
+                            </div>
+                            <div class="field span-12">
+                                <label for="curlActivateInput">保存后行为</label>
+                                <select id="curlActivateInput">
+                                    <option value="true">立即设为活动账号</option>
+                                    <option value="false">仅保存，不切换当前活动账号</option>
+                                </select>
+                            </div>
+                            <div class="span-12 button-row">
+                                <button class="primary" type="submit">从 curl 导入</button>
+                                <button class="secondary" type="button" id="curlResetBtn">清空内容</button>
+                            </div>
+                        </form>
+                        <div class="divider"></div>
                         <div class="muted-box">
-                            1. 从浏览器开发者工具或请求头中拿到 access_token / refresh token。
+                            1. 打开 https://www.kimi.com 并登录。
                             <br /><br />
-                            2. 在这里保存账号后，系统会立即访问 Kimi 的订阅接口校验有效性。
+                            2. 按 F12，进入“网络”，选中任意一个发往 kimi.com 的请求，右键“复制为 curl”。
                             <br /><br />
-                            3. 如果你不想手动取 token，直接去左侧的 OAuth 登录页即可。
+                            3. 粘贴到这里后，后端会从文本里提取 <strong>auth= 到第一个分号之间</strong> 的内容并立即校验。
                         </div>
                     </article>
                 </div>
@@ -178,68 +202,6 @@
                     </div>
                     <div id="accountsList"></div>
                 </article>
-            </section>
-
-            <!-- OAuth 登录页 -->
-            <section class="view" data-view="oauth">
-                <section class="page-header">
-                    <div class="eyebrow">OAuth</div>
-                    <h2>通过浏览器登录自动获取 Kimi token。</h2>
-                    <p>点击启动后，后端会打开浏览器窗口并自动抓取 token。只要完成登录，不需要手动复制。</p>
-                </section>
-
-                <div class="oauth-grid">
-                    <article class="surface">
-                        <div class="surface-header">
-                            <div class="surface-title">
-                                <div class="section-label">自动登录</div>
-                                <h3>通过 OAuth 添加账号</h3>
-                                <p class="subtle">点击后会打开一个浏览器窗口，你只需要完成登录，不需要手动复制 token。</p>
-                            </div>
-                        </div>
-
-                        <form id="oauthForm" class="form-grid">
-                            <div class="field span-12">
-                                <label for="oauthNameInput">账号名称</label>
-                                <input id="oauthNameInput" placeholder="Kimi OAuth Account" />
-                            </div>
-                            <div class="field span-12">
-                                <label for="oauthNotesInput">备注</label>
-                                <textarea id="oauthNotesInput" placeholder="可选：例如登录环境、使用者、到期说明"></textarea>
-                            </div>
-                            <div class="field span-12">
-                                <label for="oauthActivateInput">保存后行为</label>
-                                <select id="oauthActivateInput">
-                                    <option value="true">立即设为活动账号</option>
-                                    <option value="false">仅保存，不切换当前活动账号</option>
-                                </select>
-                            </div>
-                            <div class="span-12 button-row">
-                                <button class="primary" type="submit" id="oauthStartBtn">启动浏览器登录</button>
-                                <button class="danger hidden" type="button" id="oauthCancelBtn">取消登录</button>
-                            </div>
-                        </form>
-                    </article>
-
-                    <article class="surface">
-                        <div class="surface-header">
-                            <div class="surface-title">
-                                <div class="section-label">登录状态</div>
-                                <h3>自动抓取结果</h3>
-                                <p class="subtle">后端会轮询浏览器窗口的网络请求、Local Storage、Session Storage 和 Cookie，并自动校验 token。</p>
-                            </div>
-                        </div>
-
-                        <div class="progress-box">
-                            <div id="oauthStatusPillRow" class="stack"></div>
-                            <div id="oauthProgress" class="progress-line hidden"><span></span></div>
-                            <div id="oauthNotice" class="notice hidden"></div>
-                            <div class="muted-box" id="oauthDetails">
-                                还没有进行 OAuth 登录。点击左侧按钮后，浏览器窗口会自动打开到 Kimi 登录页。
-                            </div>
-                        </div>
-                    </article>
-                </div>
             </section>
 
             <!-- 模型映射页 -->
@@ -342,7 +304,8 @@
                             </div>
                             <div class="field span-4">
                                 <label for="portInput">Port</label>
-                                <input id="portInput" name="port" type="number" min="1" max="65535" placeholder="8080" />
+                                <input id="portInput" name="port" type="number" min="1" max="65535"
+                                    placeholder="8080" />
                             </div>
                             <div class="field span-4">
                                 <label for="logLevelInput">Log Level</label>
@@ -385,8 +348,6 @@
                             <br /><br />
                             <strong>兼容迁移：</strong> 如果发现旧的 ~/.kimi2api/config.json，程序启动时仍会读取它。
                         </div>
-                        <div class="divider"></div>
-                        <div class="footer-note">如果使用 Playwright 自带浏览器完成 OAuth 自动登录，请先执行 python -m playwright install chromium。</div>
                     </article>
                 </div>
             </section>
@@ -432,7 +393,6 @@
     <script src="/admin/static/js/toast.js"></script>
     <script src="/admin/static/js/overview.js"></script>
     <script src="/admin/static/js/accounts.js"></script>
-    <script src="/admin/static/js/oauth.js"></script>
     <script src="/admin/static/js/models.js"></script>
     <script src="/admin/static/js/keys.js"></script>
     <script src="/admin/static/js/settings.js"></script>

@@ -75,7 +75,6 @@ const AdminManager = {
         switch (AdminState.currentView) {
             case 'overview': OverviewPage.render(); break;
             case 'accounts': AccountsPage.render(); break;
-            case 'oauth': OauthPage.render(); break;
             case 'models': ModelsPage.render(); break;
             case 'keys': KeysPage.render(); break;
             case 'settings': SettingsPage.render(); break;
@@ -84,18 +83,17 @@ const AdminManager = {
 
     renderStatusPills() {
         const config = AdminState.config || {};
-        const oauthSession = AdminState.oauth?.session;
         const configPath = this.getConfigFilePath();
         const pills = [
             `<span class="pill ${config.kimi_token_configured ? 'success' : 'warn'}">${config.kimi_token_configured ? 'Kimi token ready' : 'Kimi token missing'}</span>`,
             `<span class="pill accent">${escapeHtml(config.host || '127.0.0.1')}:${escapeHtml(config.port || 8080)}</span>`,
             `<span class="pill">${escapeHtml(config.log_level || 'INFO')}</span>`,
             `<span class="pill">API Key ${config.enable_api_key ? 'enabled' : 'disabled'}</span>`,
-            `<span class="pill ${AdminState.oauth?.active ? 'warn' : 'success'}">OAuth ${escapeHtml(oauthSession?.status || (AdminState.oauth?.active ? 'running' : 'idle'))}</span>`,
+            `<span class="pill ${AdminState.activeAccountId ? 'success' : 'warn'}">${AdminState.activeAccountId ? 'Active account ready' : 'No active account'}</span>`,
         ];
         if (this.els.statusPills) this.els.statusPills.innerHTML = pills.join('');
         if (this.els.sidebarSummary) {
-            this.els.sidebarSummary.textContent = `配置文件: ${configPath}\n活动账号: ${AdminState.activeAccountId || 'none'}\nOAuth 状态: ${oauthSession?.message || 'idle'}`;
+            this.els.sidebarSummary.textContent = `配置文件: ${configPath}\n活动账号: ${AdminState.activeAccountId || 'none'}\nToken 状态: ${config.kimi_token_configured ? 'ready' : 'missing'}`;
         }
     },
 
@@ -110,36 +108,7 @@ const AdminManager = {
         AdminState.models = data.models || [];
         AdminState.apiKeys = data.api_keys || [];
         AdminState.activeAccountId = data.active_account_id || '';
-        AdminState.oauth = data.oauth || { active: false, session: null };
         this.renderAll();
-        this.ensureOauthPolling();
-    },
-
-    async refreshOauthStatus() {
-        const data = await requestJson('/admin/api/oauth/status');
-        AdminState.oauth = data || { active: false, session: null };
-        OverviewPage.renderStats();
-        this.renderStatusPills();
-        OauthPage.render();
-        this.ensureOauthPolling();
-
-        const session = AdminState.oauth.session;
-        if (session?.status === 'success') {
-            await this.loadState();
-        }
-    },
-
-    ensureOauthPolling() {
-        const shouldPoll = AdminState.oauth?.active || oauthPendingStatuses.has(AdminState.oauth?.session?.status || '');
-        if (shouldPoll && !AdminState.oauthPollTimer) {
-            AdminState.oauthPollTimer = window.setInterval(() => {
-                this.refreshOauthStatus().catch(err => console.error(err));
-            }, 2000);
-        }
-        if (!shouldPoll && AdminState.oauthPollTimer) {
-            window.clearInterval(AdminState.oauthPollTimer);
-            AdminState.oauthPollTimer = null;
-        }
     },
 
     renderAll() {
@@ -197,7 +166,6 @@ const AdminManager = {
 document.addEventListener('DOMContentLoaded', () => {
     OverviewPage.init();
     AccountsPage.init();
-    OauthPage.init();
     ModelsPage.init();
     KeysPage.init();
     SettingsPage.init();

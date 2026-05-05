@@ -2,7 +2,7 @@
 
 Kimi 网页版 Chat 转 OpenAI 兼容 API 的命令行代理工具。
 
-基于对 Chat2API（TypeScript/Electron）项目中 Kimi 相关代码的逆向分析，用 Python 重新实现了核心逻辑：将 Kimi 内部 gRPC-Web 协议转换为标准 OpenAI `/v1/chat/completions` 接口，并提供一个带侧边栏的网页管理台来管理账号、OAuth 登录、模型映射和 API Key。
+基于对 Chat2API（TypeScript/Electron）项目中 Kimi 相关代码的逆向分析，用 Python 重新实现了核心逻辑：将 Kimi 内部 gRPC-Web 协议转换为标准 OpenAI `/v1/chat/completions` 接口，并提供一个带侧边栏的网页管理台来管理账号、curl 导入、模型映射和 API Key。
 
 ## 功能
 
@@ -14,24 +14,24 @@ Kimi 网页版 Chat 转 OpenAI 兼容 API 的命令行代理工具。
 - **API Key 管理**：创建、列表、吊销、删除 API Key
 - **多模型映射**：自定义 OpenAI 模型名 → Kimi 模型名
 - **网页管理台**：浏览器里直接管理账号、配置和密钥
-- **自动 OAuth 登录**：打开浏览器登录 Kimi，并自动抓取有效 token 保存为账号
+- **curl 导入账号**：粘贴浏览器开发者工具复制的 curl 文本，自动提取 `auth` token 保存为账号
 
 ## 安装
 
 ```bash
 cd kimi2api
 pip install -r requirements.txt
-python -m playwright install chromium
 ```
 
 ## 快速开始
 
-### 1. 获取 Kimi Token
+### 1. 获取 Kimi Token 或 curl
 
 打开 https://www.kimi.com 并登录，按 F12 打开开发者工具：
 
 - **Application → Local Storage** 中查找 `access_token` 或 `refresh_token`
 - 或从任意 API 请求的 `Authorization: Bearer xxx` 头中复制
+- 或在 **网络（Network）** 中选中任意一个发往 kimi.com 的请求，右键 **复制为 curl**
 
 Token 有两种类型：
 - **JWT Token**（以 `eyJ` 开头）：直接使用
@@ -46,17 +46,27 @@ python run.py config set-token "你的Kimi_Token"
 也可以直接打开网页管理台：
 
 - 启动后访问 `http://127.0.0.1:8080/admin`
-- 在左侧侧边栏切换到不同页面管理账号、OAuth、模型映射和 API Key
-- OAuth 页面会自动打开浏览器登录并抓取 token，不需要手动复制
+- 在左侧侧边栏切换到不同页面管理账号、模型映射和 API Key
+- 在“账号”页里可以手动粘贴 token，也可以粘贴“复制为 curl”的完整文本
+- 后端会从 curl 文本中提取 `auth=` 到第一个分号之间的内容，并立即校验后保存为账号
 - 账号、模型映射和 API Key 会写入项目根目录的 `config.json`
 
-### 3. 创建 API Key（可选）
+### 3. 从账号页导入 curl（推荐）
+
+1. 打开 `http://127.0.0.1:8080/admin`
+2. 进入“账号”分页
+3. 在 Kimi 页面按 F12，进入“网络（Network）”
+4. 右键任意一个 kimi.com 请求，选择“复制为 curl”
+5. 把完整 curl 文本粘贴到“从 curl 导入”表单
+6. 保存后后端会自动提取 Cookie 中 `auth=...;` 的值，并创建账号
+
+### 4. 创建 API Key（可选）
 
 ```bash
 python run.py keys create --name "my-app"
 ```
 
-### 4. 启动服务
+### 5. 启动服务
 
 ```bash
 python run.py serve --port 8080
@@ -67,7 +77,7 @@ python run.py serve --port 8080
 - `http://127.0.0.1:8080/admin`：网页管理台
 - `http://127.0.0.1:8080/health`：健康检查
 
-### 5. 调用 API
+### 6. 调用 API
 
 ```bash
 curl http://127.0.0.1:8080/v1/chat/completions \

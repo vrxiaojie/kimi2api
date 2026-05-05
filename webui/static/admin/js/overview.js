@@ -39,13 +39,12 @@ const OverviewPage = {
     },
 
     renderStats() {
-        const oauthSession = AdminState.oauth?.session;
-        const oauthStatus = oauthSession?.status || (AdminState.oauth?.active ? 'running' : 'idle');
+        const hasReadyToken = AdminState.config?.kimi_token_configured;
         const stats = [
             { label: '配置文件', value: 'config.json', hint: '项目根目录持久化' },
             { label: '账号数', value: AdminState.accounts.length, hint: `活动账号: ${AdminState.activeAccountId || 'none'}` },
             { label: '模型映射', value: AdminState.models.length, hint: 'OpenAI 名称到 Kimi 名称' },
-            { label: 'OAuth', value: oauthStatus, hint: oauthSession?.message || '等待启动' },
+            { label: 'Token', value: hasReadyToken ? 'ready' : 'missing', hint: hasReadyToken ? '已有可用活动账号' : '先到账号页添加或导入' },
         ];
         if (this.els.statsGrid) {
             this.els.statsGrid.innerHTML = stats.map(stat => `
@@ -61,7 +60,7 @@ const OverviewPage = {
     renderSummary() {
         const config = AdminState.config || {};
         if (this.els.overviewSummary) {
-            this.els.overviewSummary.textContent = `当前共有 ${AdminState.accounts.length} 个账号、${AdminState.models.length} 条模型映射、${AdminState.apiKeys.length} 个 API Key。${config.kimi_token_configured ? '代理请求已经具备可用 token。' : '还没有可用 token，建议先去 OAuth 页完成登录。'}`;
+            this.els.overviewSummary.textContent = `当前共有 ${AdminState.accounts.length} 个账号、${AdminState.models.length} 条模型映射、${AdminState.apiKeys.length} 个 API Key。${config.kimi_token_configured ? '代理请求已经具备可用 token。' : '还没有可用 token，建议先去账号页添加或导入。'}`;
         }
     },
 };
