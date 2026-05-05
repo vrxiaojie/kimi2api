@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kimi2API 管理台</title>
+    <link rel="stylesheet" href="/admin/static/css/common.css" />
+    <link rel="stylesheet" href="/admin/static/css/toast.css" />
+</head>
+
+<body>
+    <main class="app-shell">
+        <aside class="sidebar">
+            <section class="brand">
+                <div class="eyebrow">Kimi2API Console</div>
+                <h1>网页管理台</h1>
+                <p>把账号、OAuth 登录、模型映射、API Key 和运行参数从 CLI 集中到一个后台里。</p>
+            </section>
+
+            <nav class="nav" id="sidebarNav">
+                <button class="nav-btn" data-view="overview">
+                    <strong>概览</strong>
+                    <span>状态总览、快捷入口和全局统计</span>
+                </button>
+                <button class="nav-btn" data-view="accounts">
+                    <strong>账号</strong>
+                    <span>JWT 账号管理、激活、验证和删除</span>
+                </button>
+                <button class="nav-btn" data-view="oauth">
+                    <strong>OAuth 登录</strong>
+                    <span>打开浏览器登录，并自动抓取 Kimi token</span>
+                </button>
+                <button class="nav-btn" data-view="models">
+                    <strong>模型映射</strong>
+                    <span>维护 OpenAI 名称到 Kimi 名称的映射</span>
+                </button>
+                <button class="nav-btn" data-view="keys">
+                    <strong>API Key</strong>
+                    <span>创建、吊销、启用和删除访问密钥</span>
+                </button>
+                <button class="nav-btn" data-view="settings">
+                    <strong>设置</strong>
+                    <span>修改 host、port、日志级别和默认账号</span>
+                </button>
+            </nav>
+
+            <section class="status-stack">
+                <div class="section-label">运行状态</div>
+                <div class="stack" id="statusPills"></div>
+                <div class="muted-box" id="sidebarSummary">
+                    当前配置文件写入项目根目录的 config.json，旧的 ~/.kimi2api/config.json 仍可兼容读取。
+                </div>
+            </section>
+        </aside>
+
+        <section class="content-panel">
+            <!-- 概览页 -->
+            <section class="view" data-view="overview">
+                <section class="hero">
+                    <div class="eyebrow" id="heroEyebrow">Overview</div>
+                    <h2 id="heroTitle">统一管理 Kimi2API 的运行配置和账号。</h2>
+                    <p id="heroDescription">左侧侧边栏会把 CLI 里的功能拆成不同视图。OAuth 页面会直接启动浏览器登录，并由后端自动抓取 token，无需手动复制。</p>
+                    <div class="hero-actions" style="margin-top: 18px;">
+                        <button class="primary" id="refreshBtn">刷新数据</button>
+                        <button class="secondary" id="copyConfigBtn">复制配置文件路径</button>
+                        <a class="button-link ghost" href="https://www.kimi.com" target="_blank" rel="noreferrer">打开 Kimi 官网</a>
+                    </div>
+                    <div class="stats-grid" id="statsGrid"></div>
+                </section>
+
+                <div class="cards-grid">
+                    <article class="surface">
+                        <div class="surface-header">
+                            <div class="surface-title">
+                                <div class="section-label">快速说明</div>
+                                <h3>账号接入方式</h3>
+                                <p class="subtle">JWT 适合已有 token 的场景，OAuth 适合直接浏览器登录获取。</p>
+                            </div>
+                        </div>
+                        <div class="muted-box">
+                            <strong>JWT 添加：</strong> 直接粘贴 access_token 或 refresh token，保存前会自动校验。
+                            <br /><br />
+                            <strong>OAuth 添加：</strong> 点击启动登录后，后端会打开浏览器窗口，监听 Kimi 页面请求和存储数据，拿到有效 token 后自动保存账号。
+                            <br /><br />
+                            <strong>配置位置：</strong> 项目根目录的 config.json。
+                        </div>
+                    </article>
+
+                    <article class="surface">
+                        <div class="surface-header">
+                            <div class="surface-title">
+                                <div class="section-label">当前摘要</div>
+                                <h3>可直接开始的操作</h3>
+                                <p class="subtle">适合首次启动后，先建账号、再配模型和密钥。</p>
+                            </div>
+                        </div>
+                        <div class="stack">
+                            <button class="primary" data-jump-view="oauth">启动 OAuth 登录</button>
+                            <button class="secondary" data-jump-view="accounts">新增 JWT 账号</button>
+                            <button class="secondary" data-jump-view="models">添加模型映射</button>
+                            <button class="secondary" data-jump-view="keys">创建 API Key</button>
+                        </div>
+                        <div class="divider"></div>
+                        <div class="footer-note" id="overviewSummary"></div>
+                    </article>
+                </div>
+            </section>
+
+            <!-- 账号管理页 -->
+            <section class="view" data-view="accounts">
+                <section class="page-header">
+                    <div class="eyebrow">Accounts</div>
+                    <h2>管理 JWT 账号，并控制当前活动账号。</h2>
+                    <p>这里对应 CLI 里的 token 与账号管理能力，支持保存、校验、启用、禁用和删除。</p>
+                </section>
+
+                <div class="two-col">
+                    <article class="surface">
+                        <div class="surface-header">
+                            <div class="surface-title">
+                                <div class="section-label">账号管理</div>
+                                <h3>JWT 账号</h3>
+                                <p class="subtle">可创建、验证、启用、禁用和删除账号。</p>
+                            </div>
+                            <div class="stack">
+                                <span class="pill accent" id="accountsCountPill">0 accounts</span>
+                                <span class="pill success" id="activeAccountPill">no active account</span>
+                            </div>
+                        </div>
+
+                        <form id="accountForm" class="form-grid">
+                            <div class="field span-6">
+                                <label for="accountNameInput">账号名称</label>
+                                <input id="accountNameInput" placeholder="My Kimi Account" />
+                            </div>
+                            <div class="field span-6">
+                                <label for="accountTokenInput">Token</label>
+                                <input id="accountTokenInput" placeholder="eyJ... 或 refresh token" />
+                            </div>
+                            <div class="field span-12">
+                                <label for="accountNotesInput">备注</label>
+                                <textarea id="accountNotesInput" placeholder="可选：记录 token 来源、用途或过期说明"></textarea>
+                            </div>
+                            <div class="span-12 button-row">
+                                <button class="primary" type="submit" id="accountSubmitBtn">新增账号</button>
+                                <button class="secondary" type="button" id="accountResetBtn">清空表单</button>
+                                <button class="ghost" type="button" data-jump-view="oauth">改用 OAuth 登录</button>
+                            </div>
+                        </form>
+                    </article>
+
+                    <article class="surface">
+                        <div class="surface-header">
+                            <div class="surface-title">
+                                <div class="section-label">接入建议</div>
+                                <h3>什么时候用 JWT</h3>
+                                <p class="subtle">适用于你已经有 token，或者想快速切换多个已知账号的场景。</p>
+                            </div>
+                        </div>
+                        <div class="muted-box">
+                            1. 从浏览器开发者工具或请求头中拿到 access_token / refresh token。
+                            <br /><br />
+                            2. 在这里保存账号后，系统会立即访问 Kimi 的订阅接口校验有效性。
+                            <br /><br />
+                            3. 如果你不想手动取 token，直接去左侧的 OAuth 登录页即可。
+                        </div>
+                    </article>
+                </div>
+
+                <article class="surface" style="margin-top: 18px;">
+                    <div class="surface-header">
+                        <div class="surface-title">
+                            <div class="section-label">账号列表</div>
+                            <h3>已保存账号</h3>
+                            <p class="subtle">列表中只显示脱敏 token，活动账号会用于 API 请求。</p>
+                        </div>
+                    </div>
+                    <div id="accountsList"></div>
+                </article>
+            </section>
+
+            <!-- OAuth 登录页 -->
+            <section class="view" data-view="oauth">
+                <section class="page-header">
+                    <div class="eyebrow">OAuth</div>
+                    <h2>通过浏览器登录自动获取 Kimi token。</h2>
+                    <p>点击启动后，后端会打开浏览器窗口并自动抓取 token。只要完成登录，不需要手动复制。</p>
+                </section>
+
+                <div class="oauth-grid">
+                    <article class="surface">
+                        <div class="surface-header">
+                            <div class="surface-title">
+                                <div class="section-label">自动登录</div>
+                                <h3>通过 OAuth 添加账号</h3>
+                                <p class="subtle">点击后会打开一个浏览器窗口，你只需要完成登录，不需要手动复制 token。</p>
+                            </div>
+                        </div>
+
+                        <form id="oauthForm" class="form-grid">
+                            <div class="field span-12">
+                                <label for="oauthNameInput">账号名称</label>
+                                <input id="oauthNameInput" placeholder="Kimi OAuth Account" />
+                            </div>
+                            <div class="field span-12">
+                                <label for="oauthNotesInput">备注</label>
+                                <textarea id="oauthNotesInput" placeholder="可选：例如登录环境、使用者、到期说明"></textarea>
+                            </div>
+                            <div class="field span-12">
+                                <label for="oauthActivateInput">保存后行为</label>
+                                <select id="oauthActivateInput">
+                                    <option value="true">立即设为活动账号</option>
+                                    <option value="false">仅保存，不切换当前活动账号</option>
+                                </select>
+                            </div>
+                            <div class="span-12 button-row">
+                                <button class="primary" type="submit" id="oauthStartBtn">启动浏览器登录</button>
+                                <button class="danger hidden" type="button" id="oauthCancelBtn">取消登录</button>
+                            </div>
+                        </form>
+                    </article>
+
+                    <article class="surface">
+                        <div class="surface-header">
+                            <div class="surface-title">
+                                <div class="section-label">登录状态</div>
+                                <h3>自动抓取结果</h3>
+                                <p class="subtle">后端会轮询浏览器窗口的网络请求、Local Storage、Session Storage 和 Cookie，并自动校验 token。</p>
+                            </div>
+                        </div>
+
+                        <div class="progress-box">
+                            <div id="oauthStatusPillRow" class="stack"></div>
+                            <div id="oauthProgress" class="progress-line hidden"><span></span></div>
+                            <div id="oauthNotice" class="notice hidden"></div>
+                            <div class="muted-box" id="oauthDetails">
+                                还没有进行 OAuth 登录。点击左侧按钮后，浏览器窗口会自动打开到 Kimi 登录页。
+                            </div>
+                        </div>
+                    </article>
+                </div>
+            </section>
+
+            <!-- 模型映射页 -->
+            <section class="view" data-view="models">
+                <section class="page-header">
+                    <div class="eyebrow">Models</div>
+                    <h2>维护 OpenAI 模型名到 Kimi 模型名的映射。</h2>
+                    <p>适合把调用方的公开模型名，映射到真实的 Kimi 模型。</p>
+                </section>
+
+                <article class="surface">
+                    <div class="surface-header">
+                        <div class="surface-title">
+                            <div class="section-label">模型映射</div>
+                            <h3>OpenAI 模型名到 Kimi 模型名</h3>
+                            <p class="subtle">CLI 的 model add / list / remove 全部可以在这里完成。</p>
+                        </div>
+                        <span class="pill" id="modelsCountPill">0 mappings</span>
+                    </div>
+
+                    <form id="modelForm" class="form-grid">
+                        <div class="field span-6">
+                            <label for="openaiModelInput">OpenAI 模型名</label>
+                            <input id="openaiModelInput" placeholder="gpt-4.1" />
+                        </div>
+                        <div class="field span-6">
+                            <label for="kimiModelInput">Kimi 模型名</label>
+                            <input id="kimiModelInput" placeholder="kimi-k2.6" />
+                        </div>
+                        <div class="span-12 button-row">
+                            <button class="primary" type="submit">保存映射</button>
+                        </div>
+                    </form>
+
+                    <div class="divider"></div>
+                    <div id="modelsList"></div>
+                </article>
+            </section>
+
+            <!-- API Key 管理页 -->
+            <section class="view" data-view="keys">
+                <section class="page-header">
+                    <div class="eyebrow">API Keys</div>
+                    <h2>管理访问代理服务的 API Key。</h2>
+                    <p>创建后的 Key 只显示一次明文，后续只保留前缀和状态。</p>
+                </section>
+
+                <article class="surface">
+                    <div class="surface-header">
+                        <div class="surface-title">
+                            <div class="section-label">API Key 管理</div>
+                            <h3>创建、吊销、启用和删除</h3>
+                            <p class="subtle">新创建的 key 会保留完整值，方便你在管理台里随时一键复制；旧 key 如果创建时未保存明文，则只能看到前缀。</p>
+                        </div>
+                        <span class="pill warn" id="keysCountPill">0 keys</span>
+                    </div>
+
+                    <form id="keyForm" class="form-grid">
+                        <div class="field span-9">
+                            <label for="keyNameInput">Key 名称</label>
+                            <input id="keyNameInput" placeholder="my-app" />
+                        </div>
+                        <div class="field span-3">
+                            <label>&nbsp;</label>
+                            <button class="primary" type="submit" style="width:100%">创建 Key</button>
+                        </div>
+                    </form>
+
+                    <div id="latestKeyNotice" class="notice hidden" style="margin-top: 14px;"></div>
+                    <div id="latestKeyActions" class="copy-row hidden">
+                        <button class="secondary" type="button" id="copyLatestKeyBtn">复制刚创建的 Key</button>
+                    </div>
+                    <div class="divider"></div>
+                    <div id="keysList"></div>
+                </article>
+            </section>
+
+            <!-- 设置页 -->
+            <section class="view" data-view="settings">
+                <section class="page-header">
+                    <div class="eyebrow">Settings</div>
+                    <h2>调整服务监听参数和默认账号。</h2>
+                    <p>这一页对应 CLI 中的 config show、set-port、set-host 等配置能力。</p>
+                </section>
+
+                <div class="two-col">
+                    <article class="surface">
+                        <div class="surface-header">
+                            <div class="surface-title">
+                                <div class="section-label">服务器配置</div>
+                                <h3>运行参数和默认账号</h3>
+                                <p class="subtle">修改 host、port、log level、API Key 开关，以及当前活动账号。</p>
+                            </div>
+                        </div>
+
+                        <form id="configForm" class="form-grid">
+                            <div class="field span-4">
+                                <label for="hostInput">Host</label>
+                                <input id="hostInput" name="host" placeholder="127.0.0.1" />
+                            </div>
+                            <div class="field span-4">
+                                <label for="portInput">Port</label>
+                                <input id="portInput" name="port" type="number" min="1" max="65535" placeholder="8080" />
+                            </div>
+                            <div class="field span-4">
+                                <label for="logLevelInput">Log Level</label>
+                                <select id="logLevelInput" name="log_level">
+                                    <option value="DEBUG">DEBUG</option>
+                                    <option value="INFO">INFO</option>
+                                    <option value="WARNING">WARNING</option>
+                                    <option value="ERROR">ERROR</option>
+                                </select>
+                            </div>
+                            <div class="field span-6">
+                                <label for="enableApiKeyInput">API Key Auth</label>
+                                <select id="enableApiKeyInput" name="enable_api_key">
+                                    <option value="true">Enabled</option>
+                                    <option value="false">Disabled</option>
+                                </select>
+                            </div>
+                            <div class="field span-6">
+                                <label for="activeAccountInput">Active Account</label>
+                                <select id="activeAccountInput" name="active_account_id"></select>
+                            </div>
+                            <div class="span-12 button-row">
+                                <button class="primary" type="submit">保存配置</button>
+                            </div>
+                        </form>
+                    </article>
+
+                    <article class="surface">
+                        <div class="surface-header">
+                            <div class="surface-title">
+                                <div class="section-label">配置文件</div>
+                                <h3>持久化规则</h3>
+                                <p class="subtle">方便团队协作时统一配置和模板文件。</p>
+                            </div>
+                        </div>
+                        <div class="muted-box">
+                            <strong>实际配置：</strong> 项目根目录的 config.json。
+                            <br /><br />
+                            <strong>模板文件：</strong> config.example.json，可作为提交到仓库的示例。
+                            <br /><br />
+                            <strong>兼容迁移：</strong> 如果发现旧的 ~/.kimi2api/config.json，程序启动时仍会读取它。
+                        </div>
+                        <div class="divider"></div>
+                        <div class="footer-note">如果使用 Playwright 自带浏览器完成 OAuth 自动登录，请先执行 python -m playwright install chromium。</div>
+                    </article>
+                </div>
+            </section>
+        </section>
+    </main>
+
+    <!-- 编辑账号弹窗 -->
+    <div class="modal-backdrop" id="accountEditModal" aria-hidden="true">
+        <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="accountEditModalTitle">
+            <div class="modal-header">
+                <div>
+                    <div class="section-label">编辑账号</div>
+                    <h3 id="accountEditModalTitle">更新已保存账号</h3>
+                    <p class="subtle">留空 token 会保留当前值；只有点击保存后才会写回配置文件。</p>
+                </div>
+                <button class="ghost modal-close" type="button" id="closeAccountModalBtn" aria-label="关闭弹窗">×</button>
+            </div>
+
+            <form id="accountEditForm" class="form-grid">
+                <input type="hidden" id="editingAccountId" value="" />
+                <div class="field span-6">
+                    <label for="editAccountNameInput">账号名称</label>
+                    <input id="editAccountNameInput" placeholder="My Kimi Account" />
+                </div>
+                <div class="field span-6">
+                    <label for="editAccountTokenInput">Token</label>
+                    <input id="editAccountTokenInput" placeholder="留空保留当前 token，或输入新 token" />
+                </div>
+                <div class="field span-12">
+                    <label for="editAccountNotesInput">备注</label>
+                    <textarea id="editAccountNotesInput" placeholder="可选：记录 token 来源、用途或过期说明"></textarea>
+                </div>
+                <div class="span-12 button-row">
+                    <button class="primary" type="submit" id="saveAccountModalBtn">保存修改</button>
+                    <button class="secondary" type="button" id="cancelAccountModalBtn">取消</button>
+                </div>
+            </form>
+        </section>
+    </div>
+
+    <!-- JS 加载顺序：公共工具 → Toast → 页面模块 → 主控制器 -->
+    <script src="/admin/static/js/common.js"></script>
+    <script src="/admin/static/js/toast.js"></script>
+    <script src="/admin/static/js/overview.js"></script>
+    <script src="/admin/static/js/accounts.js"></script>
+    <script src="/admin/static/js/oauth.js"></script>
+    <script src="/admin/static/js/models.js"></script>
+    <script src="/admin/static/js/keys.js"></script>
+    <script src="/admin/static/js/settings.js"></script>
+    <script src="/admin/static/js/admin.js"></script>
+</body>
+
+</html>

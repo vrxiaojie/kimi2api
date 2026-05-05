@@ -15,7 +15,7 @@ setup(
     install_requires=requirements,
     entry_points={
         "console_scripts": [
-            "kimi2api=kimi2api.cli:main",
+            "kimi2api=app.cli:main",
         ],
     },
     classifiers=[

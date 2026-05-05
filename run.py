@@ -4,7 +4,7 @@ Kimi2API - Entry Point
 Run with: python run.py serve
 """
 
-from kimi2api.cli import main
+from app.cli import main
 
 if __name__ == "__main__":
     import sys
