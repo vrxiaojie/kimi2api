@@ -1190,6 +1190,19 @@
                 return;
             }
 
+            function renderValidationPill(account) {
+                if (account.validation_status === 'passed') {
+                    return '<span class="pill success">通过</span>';
+                }
+                if (account.validation_status === 'failed') {
+                    return '<span class="pill warn">失败</span>';
+                }
+                if (account.validation_status === 'untested') {
+                    return '<span class="pill">未验证</span>';
+                }
+                return '<span class="pill">未知</span>';
+            }
+
             els.accountsList.innerHTML = `
                 <table class="table">
                     <thead>
@@ -1215,16 +1228,19 @@
                                 <td>
                                     <div class="stack">
                                         <span class="pill ${account.enabled ? 'success' : 'warn'}">${account.enabled ? 'enabled' : 'disabled'}</span>
+                                        ${renderValidationPill(account)}
                                         ${state.activeAccountId === account.id ? '<span class="pill accent">active</span>' : ''}
                                     </div>
                                     <div class="subtle" style="margin-top: 8px;">创建: ${escapeHtml(formatDate(account.created_at))}</div>
                                     <div class="subtle">更新: ${escapeHtml(formatDate(account.updated_at))}</div>
+                                    <div class="subtle">验证时间: ${escapeHtml(formatDate(account.validated_at))}</div>
+                                    <div class="subtle">验证结果: ${escapeHtml(account.validation_message || '-')}</div>
                                 </td>
                                 <td>${escapeHtml(account.notes || '-')}</td>
                                 <td>
                                     <div class="row-actions">
                                         <button class="ghost" data-action="edit-account" data-id="${escapeHtml(account.id)}">编辑</button>
-                                        <button class="secondary" data-action="activate-account" data-id="${escapeHtml(account.id)}">激活</button>
+                                        <button class="secondary" data-action="toggle-account-enabled" data-id="${escapeHtml(account.id)}" data-enabled="${account.enabled ? 'true' : 'false'}">${account.enabled ? '禁用' : '启用'}</button>
                                         <button class="secondary" data-action="validate-account" data-id="${escapeHtml(account.id)}">验证</button>
                                         <button class="danger" data-action="delete-account" data-id="${escapeHtml(account.id)}">删除</button>
                                     </div>
@@ -1518,8 +1534,12 @@
                     return;
                 }
 
-                if (action === 'activate-account') {
-                    await requestJson(`/admin/api/accounts/${button.dataset.id}/activate`, { method: 'POST' });
+                if (action === 'toggle-account-enabled') {
+                    const enabled = button.dataset.enabled === 'true';
+                    await requestJson(`/admin/api/accounts/${button.dataset.id}/enabled`, {
+                        method: 'POST',
+                        body: JSON.stringify({ enabled: !enabled }),
+                    });
                     await loadState();
                     return;
                 }

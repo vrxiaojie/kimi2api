@@ -30,6 +30,9 @@ class KimiAccount:
     notes: str = ""
     user_id: str = ""
     source: str = "manual"
+    validation_status: str = "unknown"
+    validation_message: str = ""
+    validated_at: float = 0.0
 
 
 def _detect_token_type(token: str) -> str:
@@ -143,12 +146,12 @@ def get_active_account(config_value: Optional[AppConfig] = None) -> Optional[Kim
         if account.enabled:
             return account
 
-    return current.accounts[0]
+    return None
 
 
 def set_active_account(config_value: AppConfig, account_id: str) -> Optional[KimiAccount]:
     account = get_account_by_id(config_value, account_id)
-    if not account:
+    if not account or not account.enabled:
         return None
 
     config_value.active_account_id = account.id
@@ -176,6 +179,9 @@ def _normalize_config(config_value: AppConfig) -> AppConfig:
             config_value.active_account_id = active_account.id
             if active_account.token:
                 config_value.kimi_token = active_account.token
+        else:
+            config_value.active_account_id = ""
+            config_value.kimi_token = ""
 
     return config_value
 

@@ -85,6 +85,87 @@ def _serialize_state() -> dict:
     }
 
 
+def _set_account_validation_state(account: KimiAccount, status: str, message: str) -> None:
+    now = time.time()
+    account.validation_status = status
+    account.validation_message = message
+    account.validated_at = now
+    account.updated_at = now
+
+
+def _collect_completion_result(response, model: str, request_id: str, enable_thinking: bool) -> dict:
+    """Read a non-streaming Kimi response and aggregate the final assistant payload."""
+    handler = KimiStreamHandler(
+        model=model,
+        conversation_id=request_id,
+        enable_thinking=enable_thinking,
+    )
+
+    full_content = ""
+    reasoning_content = ""
+    tool_calls = []
+
+    chunks = []
+
+    def collector(chunk):
+        if chunk is not None:
+            chunks.append(chunk)
+
+    for raw_bytes in response.iter_content(chunk_size=8192):
+        if raw_bytes:
+            handler.process_raw_bytes(raw_bytes, collector)
+
+    for chunk in chunks:
+        if chunk.get("choices"):
+            delta = chunk["choices"][0].get("delta", {})
+            if "content" in delta and delta["content"]:
+                full_content += delta["content"]
+            if "reasoning_content" in delta and delta["reasoning_content"]:
+                reasoning_content += delta["reasoning_content"]
+            if "tool_calls" in delta and delta["tool_calls"]:
+                for tool_call in delta["tool_calls"]:
+                    tool_calls.append(tool_call)
+
+    return {
+        "content": full_content.strip(),
+        "reasoning_content": reasoning_content.strip(),
+        "tool_calls": tool_calls,
+    }
+
+
+def _probe_account_chat(account: KimiAccount) -> dict:
+    """Send a minimal chat message through the account token and require a normal reply."""
+    request_id = _generate_request_id()
+    model_name = config.model_mapping.get("kimi-k2.6", "kimi-k2.6")
+    kimi_client = KimiClient(account.token)
+    response = kimi_client.chat_completion(
+        messages=[{"role": "user", "content": "你好"}],
+        model=model_name,
+        original_model="kimi-k2.6",
+        stream=False,
+        temperature=0.1,
+        enable_thinking=False,
+        enable_web_search=False,
+        tools=None,
+    )
+
+    completion = _collect_completion_result(response, model_name, request_id, False)
+    has_normal_reply = bool(
+        completion["content"] or completion["reasoning_content"] or completion["tool_calls"]
+    )
+    if not has_normal_reply:
+        raise RuntimeError("Account probe completed but did not return a normal reply")
+
+    excerpt = completion["content"] or completion["reasoning_content"] or "工具调用返回正常"
+    return {
+        "valid": True,
+        "probe_message": "你好",
+        "reply_excerpt": excerpt[:120],
+        "model": model_name,
+        "tool_calls": completion["tool_calls"],
+    }
+
+
 def _mask_credentials(data: dict) -> dict:
     masked = dict(data)
     if masked.get("token"):
@@ -289,6 +370,8 @@ def admin_accounts():
         notes=notes,
         user_id=(validation.get("account_info") or {}).get("user_id", ""),
         source="oauth" if auth_method == "oauth" else "jwt",
+        validation_status="untested",
+        validation_message="Token 已保存，尚未发送测试消息",
     )
 
     config.accounts.append(account)
@@ -387,21 +470,60 @@ def admin_account_activate(account_id: str):
     return jsonify({"active_account_id": active_account.id, "account": _serialize_account(active_account)})
 
 
-@app.route("/admin/api/accounts/<account_id>/validate", methods=["POST"])
-def admin_account_validate(account_id: str):
-    """Validate an account's token against Kimi."""
+@app.route("/admin/api/accounts/<account_id>/enabled", methods=["POST"])
+def admin_account_enabled(account_id: str):
+    """Enable or disable an account."""
     account = next((item for item in config.accounts if item.id == account_id), None)
     if not account:
         return jsonify({"error": {"message": "Account not found", "type": "not_found"}}), 404
 
-    validation = validate_kimi_token(account.token)
-    if validation.get("valid"):
-        account.updated_at = time.time()
-        account.user_id = (validation.get("account_info") or {}).get("user_id", account.user_id)
+    payload = request.get_json(force=True, silent=True) or {}
+    enabled = bool(payload.get("enabled"))
+    account.enabled = enabled
+    account.updated_at = time.time()
+
+    if not enabled and config.active_account_id == account.id:
+        config.active_account_id = ""
+        config.kimi_token = ""
+
+    save_config(config)
+    return jsonify({
+        "account": _serialize_account(account),
+        "active_account_id": _serialize_state()["active_account_id"],
+    })
+
+
+@app.route("/admin/api/accounts/<account_id>/validate", methods=["POST"])
+def admin_account_validate(account_id: str):
+    """Validate an account by sending a real probe message through Kimi."""
+    account = next((item for item in config.accounts if item.id == account_id), None)
+    if not account:
+        return jsonify({"error": {"message": "Account not found", "type": "not_found"}}), 404
+
+    try:
+        validation = _probe_account_chat(account)
+        account.last_used_at = time.time()
+        _set_account_validation_state(account, "passed", f"测试消息“你好”已收到正常回复：{validation['reply_excerpt']}")
         if config.active_account_id == account.id:
             config.kimi_token = account.token
         save_config(config)
-    return jsonify(validation)
+        return jsonify({
+            **validation,
+            "status": account.validation_status,
+            "message": account.validation_message,
+            "validated_at": account.validated_at,
+        })
+    except Exception as error:
+        _set_account_validation_state(account, "failed", str(error))
+        save_config(config)
+        return jsonify({
+            "valid": False,
+            "status": account.validation_status,
+            "message": account.validation_message,
+            "probe_message": "你好",
+            "error": str(error),
+            "validated_at": account.validated_at,
+        }), 400
 
 
 @app.route("/admin/api/models", methods=["GET", "POST"])
@@ -664,38 +786,10 @@ def _handle_non_stream(
             tools=tools,
         )
 
-        # Read the full response
-        handler = KimiStreamHandler(
-            model=model,
-            conversation_id=request_id,
-            enable_thinking=enable_thinking,
-        )
-
-        full_content = ""
-        reasoning_content = ""
-        tool_calls = []
-
-        chunks = []
-        def collector(chunk):
-            if chunk is not None:
-                chunks.append(chunk)
-
-        for raw_bytes in response.iter_content(chunk_size=8192):
-            if raw_bytes:
-                handler.process_raw_bytes(raw_bytes, collector)
-
-        # Aggregate chunks
-        for chunk in chunks:
-            if chunk.get("choices"):
-                delta = chunk["choices"][0].get("delta", {})
-                if "content" in delta and delta["content"]:
-                    full_content += delta["content"]
-                if "reasoning_content" in delta and delta["reasoning_content"]:
-                    reasoning_content += delta["reasoning_content"]
-                # Collect tool calls from delta
-                if "tool_calls" in delta and delta["tool_calls"]:
-                    for tc in delta["tool_calls"]:
-                        tool_calls.append(tc)
+        completion = _collect_completion_result(response, model, request_id, enable_thinking)
+        full_content = completion["content"]
+        reasoning_content = completion["reasoning_content"]
+        tool_calls = completion["tool_calls"]
 
         # Build OpenAI-compatible response
         message = {"role": "assistant", "content": None if tool_calls else full_content}
