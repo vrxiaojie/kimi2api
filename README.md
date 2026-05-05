@@ -48,7 +48,69 @@ Token 有两种类型：
 - **JWT Token**（以 `eyJ` 开头）：直接使用
 - **Refresh Token**：程序会自动尝试使用
 
-### 2. 配置 Token
+### 2. Docker 方式
+
+#### 2.1 使用 docker compose（推荐）
+
+直接使用仓库内的 `docker-compose.yml`：
+
+```bash
+docker compose up -d --build
+```
+
+查看日志：
+
+```bash
+docker compose logs -f
+```
+
+停止并移除容器：
+
+```bash
+docker compose down
+```
+
+默认会把项目根目录的 `./config.json` 挂载到容器内的 `/data/config.json`，方便网页管理台直接写回配置。
+
+#### 2.2 手动构建并运行 Docker 镜像
+
+构建镜像：
+
+```bash
+docker build -t kimi2api:latest .
+```
+
+运行镜像：
+
+```bash
+docker run -d \
+  --name kimi2api \
+  -p 8080:8080 \
+  -v "$(pwd)/config.json:/data/config.json" \
+  kimi2api:latest
+```
+
+#### 2.3 Docker 下配置账号
+
+启动后访问 `http://127.0.0.1:8080/admin`：
+
+- 在左侧侧边栏切换到不同页面管理账号、模型映射和 API Key
+- 在“账号”页里可以手动粘贴 token，也可以粘贴“复制为 curl”的完整文本
+- 后端会从 curl 文本中提取 `auth=` 到第一个分号之间的内容，并立即校验后保存为账号
+- 容器内配置会写入挂载的 `/data/config.json`，默认对应项目根目录的 `config.json`
+
+#### 2.4 Docker 下从账号页导入 curl（推荐）
+
+1. 打开 `http://127.0.0.1:8080/admin`
+2. 进入“账号”分页
+3. 在 Kimi 页面按 F12，进入“网络（Network）”
+4. 右键任意一个 kimi.com 请求，选择“复制为 curl”
+5. 把完整 curl 文本粘贴到“从 curl 导入”表单
+6. 保存后后端会自动提取 Cookie 中 `auth=...;` 的值，并创建账号
+
+### 3. 手动方式
+
+#### 3.1 配置 Token
 
 ```bash
 python run.py config set-token "你的Kimi_Token"
@@ -62,24 +124,7 @@ python run.py config set-token "你的Kimi_Token"
 - 后端会从 curl 文本中提取 `auth=` 到第一个分号之间的内容，并立即校验后保存为账号
 - 账号、模型映射和 API Key 会写入项目根目录的 `config.json`
 
-### Docker 运行
-
-#### 构建镜像
-
-```bash
-docker build -t kimi2api:latest .
-```
-
-#### 运行镜像
-```bash
-docker run -d \
-  --name kimi2api \
-  -p 8080:8080 \
-  -v "$(pwd)/config.json:/data/config.json" \
-  kimi2api:latest
-```
-
-### 3. 从账号页导入 curl（推荐）
+#### 3.2 从账号页导入 curl（推荐）
 
 1. 打开 `http://127.0.0.1:8080/admin`
 2. 进入“账号”分页
@@ -88,13 +133,13 @@ docker run -d \
 5. 把完整 curl 文本粘贴到“从 curl 导入”表单
 6. 保存后后端会自动提取 Cookie 中 `auth=...;` 的值，并创建账号
 
-### 4. 创建 API Key
+#### 3.3 创建 API Key
 
 ```bash
 python run.py keys create --name "my-app"
 ```
 
-### 5. 启动服务
+#### 3.4 启动服务
 
 ```bash
 python run.py serve --port 8080
@@ -105,7 +150,7 @@ python run.py serve --port 8080
 - `http://127.0.0.1:8080/admin`：网页管理台
 - `http://127.0.0.1:8080/health`：健康检查
 
-### 6. 调用 API
+#### 3.5 调用 API
 
 ```bash
 curl http://127.0.0.1:8080/v1/chat/completions \
