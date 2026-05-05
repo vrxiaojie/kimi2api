@@ -557,6 +557,56 @@
             line-height: 1.7;
         }
 
+        .copy-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-top: 12px;
+        }
+
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(3, 8, 14, 0.74);
+            backdrop-filter: blur(10px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 18px;
+            z-index: 40;
+        }
+
+        .modal-backdrop.open {
+            display: flex;
+        }
+
+        .modal-card {
+            width: min(760px, 100%);
+            max-height: calc(100vh - 36px);
+            overflow: auto;
+            background: var(--panel-strong);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 22px;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 14px;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+
+        .modal-close {
+            min-width: 44px;
+            min-height: 44px;
+            font-size: 18px;
+            line-height: 1;
+        }
+
         .hidden {
             display: none !important;
         }
@@ -729,7 +779,7 @@
                             <div class="surface-title">
                                 <div class="section-label">账号管理</div>
                                 <h3>JWT 账号</h3>
-                                <p class="subtle">可创建、编辑、验证、激活和删除账号。编辑时留空 token 会保留原值。</p>
+                                <p class="subtle">可创建、验证、启用、禁用和删除账号。编辑动作会在弹窗中完成，避免打断当前页面布局。</p>
                             </div>
                             <div class="stack">
                                 <span class="pill accent" id="accountsCountPill">0 accounts</span>
@@ -738,7 +788,6 @@
                         </div>
 
                         <form id="accountForm" class="form-grid">
-                            <input type="hidden" id="editingAccountId" value="" />
                             <div class="field span-6">
                                 <label for="accountNameInput">账号名称</label>
                                 <input id="accountNameInput" placeholder="My Kimi Account" />
@@ -752,7 +801,7 @@
                                 <textarea id="accountNotesInput" placeholder="可选：记录 token 来源、用途或过期说明"></textarea>
                             </div>
                             <div class="span-12 button-row">
-                                <button class="primary" type="submit" id="accountSubmitBtn">保存账号</button>
+                                <button class="primary" type="submit" id="accountSubmitBtn">新增账号</button>
                                 <button class="secondary" type="button" id="accountResetBtn">清空表单</button>
                                 <button class="ghost" type="button" data-jump-view="oauth">改用 OAuth 登录</button>
                             </div>
@@ -899,7 +948,7 @@
                         <div class="surface-title">
                             <div class="section-label">API Key 管理</div>
                             <h3>创建、吊销、启用和删除</h3>
-                            <p class="subtle">Key 只会在创建时返回一次明文，之后列表只显示前缀。</p>
+                            <p class="subtle">新创建的 key 会保留完整值，方便你在管理台里随时一键复制；旧 key 如果创建时未保存明文，则只能看到前缀。</p>
                         </div>
                         <span class="pill warn" id="keysCountPill">0 keys</span>
                     </div>
@@ -916,6 +965,9 @@
                     </form>
 
                     <div id="latestKeyNotice" class="notice hidden" style="margin-top: 14px;"></div>
+                    <div id="latestKeyActions" class="copy-row hidden">
+                        <button class="secondary" type="button" id="copyLatestKeyBtn">复制刚创建的 Key</button>
+                    </div>
                     <div class="divider"></div>
                     <div id="keysList"></div>
                 </article>
@@ -998,6 +1050,39 @@
         </section>
     </main>
 
+    <div class="modal-backdrop" id="accountEditModal" aria-hidden="true">
+        <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="accountEditModalTitle">
+            <div class="modal-header">
+                <div>
+                    <div class="section-label">编辑账号</div>
+                    <h3 id="accountEditModalTitle">更新已保存账号</h3>
+                    <p class="subtle">留空 token 会保留当前值；只有点击保存后才会写回配置文件。</p>
+                </div>
+                <button class="ghost modal-close" type="button" id="closeAccountModalBtn" aria-label="关闭弹窗">×</button>
+            </div>
+
+            <form id="accountEditForm" class="form-grid">
+                <input type="hidden" id="editingAccountId" value="" />
+                <div class="field span-6">
+                    <label for="editAccountNameInput">账号名称</label>
+                    <input id="editAccountNameInput" placeholder="My Kimi Account" />
+                </div>
+                <div class="field span-6">
+                    <label for="editAccountTokenInput">Token</label>
+                    <input id="editAccountTokenInput" placeholder="留空保留当前 token，或输入新 token" />
+                </div>
+                <div class="field span-12">
+                    <label for="editAccountNotesInput">备注</label>
+                    <textarea id="editAccountNotesInput" placeholder="可选：记录 token 来源、用途或过期说明"></textarea>
+                </div>
+                <div class="span-12 button-row">
+                    <button class="primary" type="submit" id="saveAccountModalBtn">保存修改</button>
+                    <button class="secondary" type="button" id="cancelAccountModalBtn">取消</button>
+                </div>
+            </form>
+        </section>
+    </div>
+
     <script>
         const views = {
             overview: {
@@ -1023,7 +1108,7 @@
             keys: {
                 eyebrow: 'API Keys',
                 title: '管理访问代理服务的 API Key。',
-                description: '创建后的 Key 只显示一次明文，后续只保留前缀和状态。',
+                description: '创建后的完整 Key 会保存在管理台列表中，方便后续再次复制。',
             },
             settings: {
                 eyebrow: 'Settings',
@@ -1042,6 +1127,7 @@
             oauth: { active: false, session: null },
             currentView: 'overview',
             oauthPollTimer: null,
+            latestCreatedKey: '',
         };
 
         const els = {
@@ -1065,13 +1151,20 @@
             accountsCountPill: document.getElementById('accountsCountPill'),
             activeAccountPill: document.getElementById('activeAccountPill'),
             accountForm: document.getElementById('accountForm'),
-            editingAccountId: document.getElementById('editingAccountId'),
             accountNameInput: document.getElementById('accountNameInput'),
             accountTokenInput: document.getElementById('accountTokenInput'),
             accountNotesInput: document.getElementById('accountNotesInput'),
             accountSubmitBtn: document.getElementById('accountSubmitBtn'),
             accountResetBtn: document.getElementById('accountResetBtn'),
             accountsList: document.getElementById('accountsList'),
+            accountEditModal: document.getElementById('accountEditModal'),
+            accountEditForm: document.getElementById('accountEditForm'),
+            editingAccountId: document.getElementById('editingAccountId'),
+            editAccountNameInput: document.getElementById('editAccountNameInput'),
+            editAccountTokenInput: document.getElementById('editAccountTokenInput'),
+            editAccountNotesInput: document.getElementById('editAccountNotesInput'),
+            closeAccountModalBtn: document.getElementById('closeAccountModalBtn'),
+            cancelAccountModalBtn: document.getElementById('cancelAccountModalBtn'),
             oauthForm: document.getElementById('oauthForm'),
             oauthNameInput: document.getElementById('oauthNameInput'),
             oauthNotesInput: document.getElementById('oauthNotesInput'),
@@ -1092,6 +1185,8 @@
             keysCountPill: document.getElementById('keysCountPill'),
             keysList: document.getElementById('keysList'),
             latestKeyNotice: document.getElementById('latestKeyNotice'),
+            latestKeyActions: document.getElementById('latestKeyActions'),
+            copyLatestKeyBtn: document.getElementById('copyLatestKeyBtn'),
         };
 
         function escapeHtml(value) {
@@ -1133,6 +1228,20 @@
             element.classList.add('hidden');
             element.classList.remove('error');
             element.textContent = '';
+        }
+
+        async function copyText(value, successMessage) {
+            if (!value) {
+                alert('没有可复制的内容');
+                return;
+            }
+
+            try {
+                await navigator.clipboard.writeText(value);
+                alert(successMessage || '已复制到剪贴板');
+            } catch {
+                alert(value);
+            }
         }
 
         async function requestJson(url, options = {}) {
@@ -1343,7 +1452,7 @@
                 <table class="table">
                     <thead>
                         <tr>
-                            <th>前缀</th>
+                            <th>完整 Key</th>
                             <th>名称</th>
                             <th>状态</th>
                             <th>创建时间</th>
@@ -1353,12 +1462,16 @@
                     <tbody>
                         ${state.apiKeys.map(apiKey => `
                             <tr>
-                                <td><span class="token">${escapeHtml(apiKey.prefix)}</span></td>
+                                <td>
+                                    <span class="token">${escapeHtml(maskToken(apiKey.key || apiKey.prefix))}</span>
+                                    ${apiKey.copy_available ? '' : '<div class="subtle" style="margin-top: 8px;">旧格式 key，仅保留前缀</div>'}
+                                </td>
                                 <td>${escapeHtml(apiKey.name)}</td>
                                 <td><span class="pill ${apiKey.enabled ? 'success' : 'warn'}">${apiKey.enabled ? 'enabled' : 'revoked'}</span></td>
                                 <td>${escapeHtml(formatDate(apiKey.created_at))}</td>
                                 <td>
                                     <div class="row-actions">
+                                        <button class="ghost" data-action="copy-key-value" data-key="${escapeHtml(apiKey.key || '')}" ${apiKey.copy_available ? '' : 'disabled'}>${apiKey.copy_available ? '复制完整 Key' : '需重建后复制'}</button>
                                         <button class="secondary" data-action="toggle-key" data-prefix="${escapeHtml(apiKey.prefix)}" data-enabled="${apiKey.enabled ? 'true' : 'false'}">${apiKey.enabled ? '吊销' : '启用'}</button>
                                         <button class="danger" data-action="delete-key" data-prefix="${escapeHtml(apiKey.prefix)}">删除</button>
                                     </div>
@@ -1460,23 +1573,30 @@
         }
 
         function resetAccountForm() {
-            els.editingAccountId.value = '';
             els.accountNameInput.value = '';
             els.accountTokenInput.value = '';
             els.accountTokenInput.placeholder = 'eyJ... 或 refresh token';
             els.accountNotesInput.value = '';
-            els.accountSubmitBtn.textContent = '保存账号';
+            els.accountSubmitBtn.textContent = '新增账号';
         }
 
-        function fillAccountForm(account) {
+        function openAccountEditModal(account) {
             els.editingAccountId.value = account.id;
-            els.accountNameInput.value = account.name || '';
-            els.accountTokenInput.value = '';
-            els.accountTokenInput.placeholder = '留空保留当前 token，或输入新 token';
-            els.accountNotesInput.value = account.notes || '';
-            els.accountSubmitBtn.textContent = '更新账号';
-            setView('accounts');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            els.editAccountNameInput.value = account.name || '';
+            els.editAccountTokenInput.value = '';
+            els.editAccountTokenInput.placeholder = '留空保留当前 token，或输入新 token';
+            els.editAccountNotesInput.value = account.notes || '';
+            els.accountEditModal.classList.add('open');
+            els.accountEditModal.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeAccountEditModal() {
+            els.editingAccountId.value = '';
+            els.editAccountNameInput.value = '';
+            els.editAccountTokenInput.value = '';
+            els.editAccountNotesInput.value = '';
+            els.accountEditModal.classList.remove('open');
+            els.accountEditModal.setAttribute('aria-hidden', 'true');
         }
 
         async function submitConfig(event) {
@@ -1503,20 +1623,34 @@
                 notes: els.accountNotesInput.value.trim(),
             };
 
-            const editingId = els.editingAccountId.value;
-            if (editingId) {
-                await requestJson(`/admin/api/accounts/${editingId}`, {
-                    method: 'PUT',
-                    body: JSON.stringify(payload),
-                });
-            } else {
-                await requestJson('/admin/api/accounts', {
-                    method: 'POST',
-                    body: JSON.stringify({ ...payload, activate: true }),
-                });
-            }
+            await requestJson('/admin/api/accounts', {
+                method: 'POST',
+                body: JSON.stringify({ ...payload, activate: true }),
+            });
 
             resetAccountForm();
+            await loadState();
+        }
+
+        async function submitAccountEdit(event) {
+            event.preventDefault();
+            const editingId = els.editingAccountId.value;
+            if (!editingId) {
+                closeAccountEditModal();
+                return;
+            }
+
+            await requestJson(`/admin/api/accounts/${editingId}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    name: els.editAccountNameInput.value.trim(),
+                    token: els.editAccountTokenInput.value.trim(),
+                    auth_method: 'jwt',
+                    notes: els.editAccountNotesInput.value.trim(),
+                }),
+            });
+
+            closeAccountEditModal();
             await loadState();
         }
 
@@ -1561,7 +1695,9 @@
             });
             els.keyNameInput.value = '';
             if (result.key) {
-                setNotice(els.latestKeyNotice, `新建 API Key: ${result.key}\n请立即复制并保存，之后不会再次显示。`);
+                state.latestCreatedKey = result.key;
+                setNotice(els.latestKeyNotice, `新建 API Key: ${result.key}\n你也可以在下方列表中再次复制完整 key。`);
+                els.latestKeyActions.classList.remove('hidden');
             }
             await loadState();
         }
@@ -1579,7 +1715,7 @@
             try {
                 if (action === 'edit-account') {
                     const account = state.accounts.find(item => item.id === button.dataset.id);
-                    if (account) fillAccountForm(account);
+                    if (account) openAccountEditModal(account);
                     return;
                 }
 
@@ -1620,6 +1756,11 @@
                     const endpoint = enabled ? 'revoke' : 'enable';
                     await requestJson(`/admin/api/api-keys/${encodeURIComponent(button.dataset.prefix)}/${endpoint}`, { method: 'POST' });
                     await loadState();
+                    return;
+                }
+
+                if (action === 'copy-key-value') {
+                    await copyText(button.dataset.key, '已复制完整 Key');
                     return;
                 }
 
@@ -1677,10 +1818,19 @@
         els.configForm.addEventListener('submit', event => submitConfig(event).catch(error => alert(error.message)));
         els.accountForm.addEventListener('submit', event => submitAccount(event).catch(error => alert(error.message)));
         els.accountResetBtn.addEventListener('click', resetAccountForm);
+        els.accountEditForm.addEventListener('submit', event => submitAccountEdit(event).catch(error => alert(error.message)));
+        els.closeAccountModalBtn.addEventListener('click', closeAccountEditModal);
+        els.cancelAccountModalBtn.addEventListener('click', closeAccountEditModal);
+        els.accountEditModal.addEventListener('click', event => {
+            if (event.target === els.accountEditModal) {
+                closeAccountEditModal();
+            }
+        });
         els.oauthForm.addEventListener('submit', event => submitOauth(event).catch(error => alert(error.message)));
         els.oauthCancelBtn.addEventListener('click', () => cancelOauth().catch(error => alert(error.message)));
         els.modelForm.addEventListener('submit', event => submitModel(event).catch(error => alert(error.message)));
         els.keyForm.addEventListener('submit', event => submitKey(event).catch(error => alert(error.message)));
+        els.copyLatestKeyBtn.addEventListener('click', () => copyText(state.latestCreatedKey, '已复制刚创建的 Key'));
         document.addEventListener('click', handleListAction);
 
         loadState().catch(error => {

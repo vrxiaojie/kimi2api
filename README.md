@@ -133,7 +133,6 @@ python run.py serve --host 0.0.0.0 --port 8080
 
 - **主配置**：项目根目录的 `config.json`
 - **模板文件**：`config.example.json`
-- **旧配置兼容**：仍会读取 `~/.kimi2api/config.json`，便于迁移
 
 ## 技术细节
 

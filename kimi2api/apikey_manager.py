@@ -21,12 +21,13 @@ class ApiKeyInfo:
     created_at: float      # Unix timestamp
     last_used_at: float = 0.0
     enabled: bool = True
+    raw_key: str = ""      # Full key value for admin copy
 
 
 class ApiKeyManager:
     """
     Manages API keys for the proxy server.
-    Keys are stored as SHA-256 hashes in the config file (not plaintext).
+    Keys are stored in config with both raw value and SHA-256 hash so the admin UI can copy them later.
     
     Usage:
         manager = ApiKeyManager()
@@ -61,6 +62,7 @@ class ApiKeyManager:
         key_hash = self._hash_key(raw_key)
         
         info = ApiKeyInfo(
+            raw_key=raw_key,
             key_hash=key_hash,
             prefix=raw_key[:11],  # "sk-" + first 8 hex chars
             name=name or f"key-{len(self._keys) + 1}",
@@ -91,7 +93,7 @@ class ApiKeyManager:
         return False
 
     def list_keys(self) -> list[ApiKeyInfo]:
-        """List all API keys (with hashes, not raw keys)"""
+        """List all API keys."""
         return list(self._keys.values())
 
     def revoke_key(self, prefix_or_name: str) -> bool:
@@ -143,6 +145,7 @@ class ApiKeyManager:
                 # Old format: raw key string
                 key_hash = self._hash_key(item)
                 self._keys[key_hash] = ApiKeyInfo(
+                    raw_key=item,
                     key_hash=key_hash,
                     prefix=item[:11] if len(item) >= 11 else item,
                     name="legacy-key",
@@ -150,7 +153,9 @@ class ApiKeyManager:
                     enabled=True,
                 )
             elif isinstance(item, dict):
-                info = ApiKeyInfo(**item)
+                migrated_item = dict(item)
+                migrated_item.setdefault("raw_key", "")
+                info = ApiKeyInfo(**migrated_item)
                 self._keys[info.key_hash] = info
 
 

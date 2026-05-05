@@ -5,7 +5,17 @@
     "accounts": [],
     "active_account_id": "",
     "enable_api_key": true,
-    "api_keys": [],
+    "api_keys": [
+        {
+            "raw_key": "sk-your-full-key-value",
+            "key_hash": "sha256-of-the-key",
+            "prefix": "sk-yourful",
+            "name": "example-key",
+            "created_at": 0,
+            "last_used_at": 0,
+            "enabled": true
+        }
+    ],
     "model_mapping": {
         "kimi-k2.6": "kimi-k2.6",
         "kimi-k2.6-thinking": "kimi-k2.6"

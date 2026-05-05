@@ -53,6 +53,8 @@ def _serialize_account(account: KimiAccount, include_token: bool = False) -> dic
 
 def _serialize_api_key(api_key) -> dict:
     return {
+        "key": api_key.raw_key,
+        "copy_available": bool(api_key.raw_key),
         "prefix": api_key.prefix,
         "name": api_key.name,
         "created_at": api_key.created_at,
