@@ -1,0 +1,215 @@
+/* ── Toast 浮动消息提示 ── */
+.toast-container {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+}
+
+.toast {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 20px;
+    border-radius: 16px;
+    background: rgba(11, 21, 37, 0.96);
+    border: 1px solid rgba(150, 169, 198, 0.16);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(16px);
+    color: #e7effa;
+    font-size: 14px;
+    line-height: 1.5;
+    min-width: 280px;
+    max-width: 440px;
+    pointer-events: auto;
+    transform: translateX(120%);
+    opacity: 0;
+    transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+                opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.toast.show {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.toast.leaving {
+    transform: translateX(120%);
+    opacity: 0;
+    transition: transform 0.28s cubic-bezier(0.55, 0, 1, 0.45),
+                opacity 0.28s cubic-bezier(0.55, 0, 1, 0.45);
+}
+
+.toast-icon {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    margin-top: 1px;
+}
+
+.toast-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.toast-title {
+    font-weight: 700;
+    font-size: 14px;
+    margin-bottom: 2px;
+    color: #fff;
+}
+
+.toast-message {
+    color: #98abc7;
+    font-size: 13px;
+    word-break: break-word;
+}
+
+.toast-close {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border: 0;
+    background: transparent;
+    color: #98abc7;
+    font-size: 16px;
+    cursor: pointer;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s;
+    padding: 0;
+}
+
+.toast-close:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+}
+
+/* ── 进度条 ── */
+.toast-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    border-radius: 0 0 16px 16px;
+    transition: width linear;
+}
+
+/* ── 类型样式 ── */
+.toast.toast-success {
+    border-color: rgba(74, 222, 128, 0.3);
+}
+
+.toast.toast-success .toast-icon {
+    background: rgba(74, 222, 128, 0.18);
+    color: #4ade80;
+}
+
+.toast.toast-success .toast-progress {
+    background: linear-gradient(90deg, #4ade80, #22c55e);
+}
+
+.toast.toast-error {
+    border-color: rgba(255, 122, 140, 0.3);
+}
+
+.toast.toast-error .toast-icon {
+    background: rgba(255, 122, 140, 0.18);
+    color: #ff7a8c;
+}
+
+.toast.toast-error .toast-progress {
+    background: linear-gradient(90deg, #ff7a8c, #f43f5e);
+}
+
+.toast.toast-warning {
+    border-color: rgba(255, 193, 93, 0.3);
+}
+
+.toast.toast-warning .toast-icon {
+    background: rgba(255, 193, 93, 0.18);
+    color: #ffc15d;
+}
+
+.toast.toast-warning .toast-progress {
+    background: linear-gradient(90deg, #ffc15d, #f59e0b);
+}
+
+.toast.toast-info {
+    border-color: rgba(116, 169, 255, 0.3);
+}
+
+.toast.toast-info .toast-icon {
+    background: rgba(116, 169, 255, 0.18);
+    color: #74a9ff;
+}
+
+.toast.toast-info .toast-progress {
+    background: linear-gradient(90deg, #74a9ff, #3b82f6);
+}
+
+/* ── 确认对话框 ── */
+.toast-confirm-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(3, 8, 14, 0.6);
+    backdrop-filter: blur(8px);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: confirm-fade-in 0.2s ease;
+}
+
+@keyframes confirm-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.toast-confirm-card {
+    background: rgba(16, 29, 49, 0.98);
+    border: 1px solid rgba(150, 169, 198, 0.2);
+    border-radius: 20px;
+    padding: 28px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+    max-width: 420px;
+    width: 90%;
+    animation: confirm-scale-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes confirm-scale-in {
+    from { transform: scale(0.92); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+.toast-confirm-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 10px;
+}
+
+.toast-confirm-message {
+    color: #98abc7;
+    font-size: 14px;
+    line-height: 1.6;
+    margin-bottom: 24px;
+}
+
+.toast-confirm-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}

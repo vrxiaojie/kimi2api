@@ -4,6 +4,7 @@ Flask-based server that exposes /v1/chat/completions and other endpoints,
 proxying requests to Kimi's internal API.
 """
 
+import os
 import json
 import time
 import uuid
@@ -12,7 +13,7 @@ from typing import Optional
 
 from dataclasses import asdict
 
-from flask import Flask, request, Response, jsonify, stream_with_context, render_template
+from flask import Flask, request, Response, jsonify, stream_with_context, render_template, send_from_directory
 
 from .config import (
     config,
@@ -36,7 +37,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("kimi2api")
 
-app = Flask(__name__)
+# static_folder 指向 kimi2api/static
+_static_dir = os.path.join(os.path.dirname(__file__), "static")
+app = Flask(__name__, static_folder=_static_dir)
 
 # Public paths that don't require authentication
 PUBLIC_PATHS = {"/", "/health", "/stats", "/v1/models"}
@@ -252,6 +255,13 @@ def root():
 def admin():
     """Render the web admin dashboard."""
     return render_template("admin.html")
+
+
+@app.route("/admin/static/<path:filename>")
+def admin_static(filename):
+    """Serve admin static files (CSS, JS)."""
+    admin_static_dir = os.path.join(os.path.dirname(__file__), "static", "admin")
+    return send_from_directory(admin_static_dir, filename)
 
 
 @app.route("/health", methods=["GET"])
