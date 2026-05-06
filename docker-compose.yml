@@ -5,7 +5,6 @@ services:
       dockerfile: Dockerfile
     image: kimi2api:latest
     container_name: kimi2api
-    network_mode: bridge
     ports:
       - "8080:8080"
     volumes:
