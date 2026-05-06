@@ -108,49 +108,26 @@ docker run -d \
 5. 把完整 curl 文本粘贴到“从 curl 导入”表单
 6. 保存后后端会自动提取 Cookie 中 `auth=...;` 的值，并创建账号
 
-### 3. 手动方式
+### 3. CLI方式
 
 #### 3.1 配置 Token
 
 ```bash
 python run.py config set-token "你的Kimi_Token"
 ```
-
-也可以直接打开网页管理台：
-
-- 启动后访问 `http://127.0.0.1:8080/admin`
-- 在左侧侧边栏切换到不同页面管理账号、模型映射和 API Key
-- 在“账号”页里可以手动粘贴 token，也可以粘贴“复制为 curl”的完整文本
-- 后端会从 curl 文本中提取 `auth=` 到第一个分号之间的内容，并立即校验后保存为账号
-- 账号、模型映射和 API Key 会写入项目根目录的 `config.json`
-
-#### 3.2 从账号页导入 curl（推荐）
-
-1. 打开 `http://127.0.0.1:8080/admin`
-2. 进入“账号”分页
-3. 在 Kimi 页面按 F12，进入“网络（Network）”
-4. 右键任意一个 kimi.com 请求，选择“复制为 curl”
-5. 把完整 curl 文本粘贴到“从 curl 导入”表单
-6. 保存后后端会自动提取 Cookie 中 `auth=...;` 的值，并创建账号
-
-#### 3.3 创建 API Key
+#### 3.2 创建 API Key
 
 ```bash
 python run.py keys create --name "my-app"
 ```
 
-#### 3.4 启动服务
+#### 3.3 启动服务
 
 ```bash
 python run.py serve --port 8080
 ```
 
-启动后可以访问：
-
-- `http://127.0.0.1:8080/admin`：网页管理台
-- `http://127.0.0.1:8080/health`：健康检查
-
-#### 3.5 调用 API
+#### 3.4 调用 API
 
 ```bash
 curl http://127.0.0.1:8080/v1/chat/completions \
