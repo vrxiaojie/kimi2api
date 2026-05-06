@@ -2,7 +2,7 @@
 
 Kimi 网页版 Chat 转 OpenAI 兼容 API 的命令行代理工具。
 
-基于对 Chat2API（TypeScript/Electron）项目中 Kimi 相关代码的逆向分析，用 Python 重新实现了核心逻辑：将 Kimi 内部 gRPC-Web 协议转换为标准 OpenAI `/v1/chat/completions` 接口，并提供一个带侧边栏的网页管理台来管理账号、curl 导入、模型映射和 API Key。
+将 Kimi 内部 gRPC-Web 协议转换为标准 OpenAI `/v1/chat/completions` 接口，并提供一个网页管理台来管理账号、curl 导入、模型映射和 API Key。
 
 ## 功能
 
@@ -230,6 +230,7 @@ python run.py serve --host 0.0.0.0 --port 8080
 - Python >= 3.9
 - Flask >= 3.0
 - requests >= 2.31
+- gunicorn>=21.2.0
 
 ## 免责声明
 
