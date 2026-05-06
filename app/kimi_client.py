@@ -18,6 +18,7 @@ from .tool_parser import TOOL_WRAP_HINT, has_tool_prompt_injected
 
 KIMI_API_BASE = "https://www.kimi.com"
 CHAT_PATH = "/apiv2/kimi.gateway.chat.v1.ChatService/Chat"
+DELETE_CHAT_PATH = "/apiv2/kimi.chat.v1.ChatService/DeleteChat"
 
 # gRPC-Web frame constants
 GRPC_WEB_FLAG = 0x00
@@ -297,6 +298,60 @@ class KimiClient:
             raise RuntimeError(error_msg)
 
         return response
+
+    def delete_chat(self, chat_id: str) -> dict:
+        """
+        Delete a chat session by its ID.
+        Calls Kimi's DeleteChat gRPC-Web endpoint.
+        
+        Args:
+            chat_id: The unique chat session ID to delete.
+            
+        Returns:
+            dict with the API response payload.
+        """
+        token_info = self._get_token_info()
+
+        headers = {
+            **FAKE_HEADERS,
+            "Authorization": f"Bearer {token_info.access_token}",
+            "Content-Type": "application/json",
+        }
+
+        payload = {"chat_id": chat_id}
+
+        url = f"{KIMI_API_BASE}{DELETE_CHAT_PATH}"
+        print(f"[KimiClient] Deleting chat: {chat_id}")
+
+        response = requests.post(
+            url,
+            json=payload,
+            headers=headers,
+            timeout=30,
+        )
+
+        print(f"[KimiClient] DeleteChat response status: {response.status_code}")
+
+        if response.status_code == 401:
+            token_manager.remove_token(self.token)
+            raise ValueError("Kimi token is invalid or expired")
+
+        if response.status_code != 200:
+            error_msg = f"Kimi DeleteChat error: HTTP {response.status_code}"
+            try:
+                error_data = response.json()
+                error_msg = f"Kimi DeleteChat error: {error_data.get('message', error_data)}"
+            except Exception:
+                pass
+            raise RuntimeError(error_msg)
+
+        try:
+            result = response.json()
+        except Exception:
+            result = {"success": True}
+
+        print(f"[KimiClient] DeleteChat result: {result}")
+        return result
 
 
 def _build_tools_prompt(tools: list[dict]) -> str:

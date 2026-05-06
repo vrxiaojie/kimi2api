@@ -5,6 +5,7 @@
     "accounts": [],
     "active_account_id": "",
     "enable_api_key": true,
+    "auto_delete_chat": false,
     "api_keys": [
         {
             "raw_key": "sk-your-full-key-value",

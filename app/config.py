@@ -84,6 +84,9 @@ class AppConfig:
     # Log level
     log_level: str = "INFO"
 
+    # Auto-delete chat after completion
+    auto_delete_chat: bool = False
+
 
 def get_default_config() -> AppConfig:
     """Get default configuration"""

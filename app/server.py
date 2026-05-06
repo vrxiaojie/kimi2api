@@ -78,6 +78,7 @@ def _serialize_state() -> dict:
             "port": config.port,
             "log_level": config.log_level,
             "enable_api_key": config.enable_api_key,
+            "auto_delete_chat": config.auto_delete_chat,
             "config_file": CONFIG_FILE,
             "kimi_token_configured": bool(get_active_kimi_token(config)),
             "active_account_id": config.active_account_id,
@@ -138,6 +139,7 @@ def _collect_completion_result(response, model: str, request_id: str, enable_thi
         "content": full_content.strip(),
         "reasoning_content": reasoning_content.strip(),
         "tool_calls": tool_calls,
+        "chat_id": handler.real_chat_id,
     }
 
 
@@ -395,6 +397,8 @@ def admin_config():
         config.log_level = str(payload["log_level"]).upper()
     if "enable_api_key" in payload:
         config.enable_api_key = bool(payload["enable_api_key"])
+    if "auto_delete_chat" in payload:
+        config.auto_delete_chat = bool(payload["auto_delete_chat"])
 
     if "active_account_id" in payload and payload["active_account_id"]:
         active_account = set_active_account(config, str(payload["active_account_id"]))
@@ -620,6 +624,32 @@ def admin_model_delete(openai_model: str):
     return jsonify({"deleted": True, "openai_model": openai_model})
 
 
+@app.route("/admin/api/chats/delete", methods=["POST"])
+def admin_chats_delete():
+    """Delete a chat session by its ID via Kimi API."""
+    payload = request.get_json(force=True, silent=True) or {}
+    chat_id = str(payload.get("chat_id") or "").strip()
+
+    if not chat_id:
+        return jsonify({"error": {"message": "Missing required field: chat_id", "type": "invalid_request_error"}}), 400
+
+    try:
+        kimi_client = _get_kimi_client()
+    except ValueError as e:
+        return jsonify({"error": {"message": str(e), "type": "configuration_error"}}), 500
+
+    try:
+        result = kimi_client.delete_chat(chat_id)
+        return jsonify({"success": True, "chat_id": chat_id, "result": result})
+    except ValueError as e:
+        return jsonify({"error": {"message": str(e), "type": "authentication_error"}}), 401
+    except RuntimeError as e:
+        return jsonify({"error": {"message": str(e), "type": "api_error"}}), 502
+    except Exception as e:
+        logger.error(f"[DeleteChat] Unexpected error: {e}")
+        return jsonify({"error": {"message": str(e), "type": "internal_error"}}), 500
+
+
 @app.route("/admin/api/api-keys", methods=["GET", "POST"])
 def admin_api_keys():
     """List or create API keys."""
@@ -800,6 +830,18 @@ def _handle_stream(
 
             yield "data: [DONE]\n\n"
 
+            # Auto-delete chat after completion if enabled
+            if config.auto_delete_chat:
+                chat_id = handler.real_chat_id
+                if chat_id:
+                    try:
+                        kimi_client.delete_chat(chat_id)
+                        logger.info(f"[{request_id}] Auto-deleted chat: {chat_id}")
+                    except Exception as del_err:
+                        logger.warning(f"[{request_id}] Failed to auto-delete chat {chat_id}: {del_err}")
+                else:
+                    logger.warning(f"[{request_id}] auto_delete_chat enabled but no chat_id extracted from stream")
+
         except Exception as e:
             logger.error(f"[{request_id}] Stream error: {e}")
             error_chunk = {
@@ -855,6 +897,7 @@ def _handle_non_stream(
         full_content = completion["content"]
         reasoning_content = completion["reasoning_content"]
         tool_calls = completion["tool_calls"]
+        chat_id = completion.get("chat_id")
 
         # Build OpenAI-compatible response
         message = {"role": "assistant", "content": None if tool_calls else full_content}
@@ -881,6 +924,18 @@ def _handle_non_stream(
                 "total_tokens": 0,
             },
         }
+
+        # Auto-delete chat after completion if enabled
+        if config.auto_delete_chat:
+            if chat_id:
+                try:
+                    kimi_client.delete_chat(chat_id)
+                    logger.info(f"[{request_id}] Auto-deleted chat: {chat_id}")
+                except Exception as del_err:
+                    logger.warning(f"[{request_id}] Failed to auto-delete chat {chat_id}: {del_err}")
+            else:
+                logger.warning(f"[{request_id}] auto_delete_chat enabled but no chat_id extracted from response")
+
         return jsonify(result)
 
     except Exception as e:

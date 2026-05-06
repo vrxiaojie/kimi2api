@@ -11,6 +11,7 @@ const SettingsPage = {
             portInput: document.getElementById('portInput'),
             logLevelInput: document.getElementById('logLevelInput'),
             enableApiKeyInput: document.getElementById('enableApiKeyInput'),
+            autoDeleteChatInput: document.getElementById('autoDeleteChatInput'),
             activeAccountInput: document.getElementById('activeAccountInput'),
         };
 
@@ -31,6 +32,7 @@ const SettingsPage = {
         if (this.els.portInput) this.els.portInput.value = AdminState.config.port || 8080;
         if (this.els.logLevelInput) this.els.logLevelInput.value = AdminState.config.log_level || 'INFO';
         if (this.els.enableApiKeyInput) this.els.enableApiKeyInput.value = String(Boolean(AdminState.config.enable_api_key));
+        if (this.els.autoDeleteChatInput) this.els.autoDeleteChatInput.value = String(Boolean(AdminState.config.auto_delete_chat));
 
         if (this.els.activeAccountInput) {
             const options = AdminState.accounts.map(account => {
@@ -51,6 +53,7 @@ const SettingsPage = {
                 port: Number(this.els.portInput?.value),
                 log_level: this.els.logLevelInput?.value,
                 enable_api_key: this.els.enableApiKeyInput?.value === 'true',
+                auto_delete_chat: this.els.autoDeleteChatInput?.value === 'true',
                 active_account_id: this.els.activeAccountInput?.value,
             }),
         });
