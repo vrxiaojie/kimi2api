@@ -938,7 +938,8 @@ def create_app() -> Flask:
 
 
 def run_server(host: str = None, port: int = None, debug: bool = False):
-    """Run the Flask development server"""
+    """Run the server. Prefers gunicorn if available, falls back to Flask dev server."""
+    import subprocess
     host = host or config.host
     port = port or config.port
 
@@ -946,4 +947,20 @@ def run_server(host: str = None, port: int = None, debug: bool = False):
     logger.info(f"API Key auth: {'enabled' if config.enable_api_key and config.api_keys else 'disabled'}")
     logger.info(f"Kimi token: {'configured' if config.kimi_token else 'NOT CONFIGURED'}")
 
-    app.run(host=host, port=port, debug=debug, threaded=True)
+    # Try gunicorn first for production-grade concurrency
+    try:
+        import gunicorn  # noqa: F401
+        logger.info("Using gunicorn WSGI server")
+        subprocess.run([
+            "gunicorn",
+            "--bind", f"{host}:{port}",
+            "--workers", "2",
+            "--threads", "4",
+            "--timeout", "120",
+            "--access-logfile", "-",
+            "--error-logfile", "-",
+            "app.server:create_app()",
+        ], check=True)
+    except (ImportError, FileNotFoundError):
+        logger.warning("gunicorn not found, falling back to Flask development server (not recommended for production)")
+        app.run(host=host, port=port, debug=debug, threaded=True)
